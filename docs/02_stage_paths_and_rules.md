@@ -8,23 +8,23 @@ Under the AICTE Approval Process Handbook (APH), an application is classified in
 
 1. **Path 1: `PATH_1_SCRUTINY_ONLY` (Extension of Approval - Routine)**
    - *Application Categories*: Existing Institutions seeking Extension of Approval (EoA) without changes in intake or land/building alterations.
-   - *Stage Sequence*: `SUBMITTED` -> `SCRUTINY` -> `APPROVAL_GRANTED` / `APPROVAL_REJECTED` (or `RE_SCRUTINY` upon deficiency response).
+   - *Stage Sequence*: `SUBMITTED` -> `SCRUTINY` -> `APPROVAL_GRANTED` / `APPROVAL_REJECTED` -> `CLOSED` (or `RE_SCRUTINY` upon deficiency response).
    
 2. **Path 2: `PATH_2_SCRUTINY_EVC` (New Institution / Major Expansion)**
    - *Application Categories*: Setting up a new technical institution, conversion from women's to co-ed, change of site, or significant expansion.
-   - *Stage Sequence*: `SUBMITTED` -> `SCRUTINY` -> `EVC_PENDING` -> `EVC_SCHEDULED` -> `EVC_COMPLETED` -> `APPROVAL_GRANTED` / `APPROVAL_REJECTED`.
+   - *Stage Sequence*: `SUBMITTED` -> `SCRUTINY` -> `EVC_PENDING` -> `EVC_SCHEDULED` -> `EVC_COMPLETED` -> `APPROVAL_GRANTED` / `APPROVAL_REJECTED` -> `CLOSED`.
 
 3. **Path 3: `PATH_3_EVC_SAC_SHC` (Appellate / Hearing Cycle)**
    - *Application Categories*: Applications rejected in Scrutiny/EVC appealing before the Standing Hearing Committee (SHC) or Standing Appellate Committee (SAC).
-   - *Stage Sequence*: `SUBMITTED` -> `SAC_SHC_REVIEW` -> `EVC_PENDING` -> `EVC_SCHEDULED` -> `EVC_COMPLETED` -> `APPROVAL_GRANTED` / `APPROVAL_REJECTED`.
+   - *Stage Sequence*: `SUBMITTED` -> `SAC_SHC_REVIEW` -> `EVC_PENDING` -> `EVC_SCHEDULED` -> `EVC_COMPLETED` -> `APPROVAL_GRANTED` / `APPROVAL_REJECTED` -> `CLOSED`.
 
 4. **Path 4: `PATH_4_EVC_ONLY` (Physical Verification / Surprise Inspection)**
    - *Application Categories*: Complaints, random physical audit, or unannounced infrastructure verification of existing campuses.
-   - *Stage Sequence*: `SUBMITTED` -> `EVC_PENDING` -> `EVC_SCHEDULED` -> `EVC_COMPLETED` -> `SAC_SHC_REVIEW` (if adverse findings) -> `APPROVAL_GRANTED` / `APPROVAL_REJECTED`.
+   - *Stage Sequence*: `SUBMITTED` -> `EVC_PENDING` -> `EVC_SCHEDULED` -> `EVC_COMPLETED` -> `SAC_SHC_REVIEW` (if adverse findings) -> `APPROVAL_GRANTED` / `APPROVAL_REJECTED` -> `CLOSED`.
 
 5. **Path 5: `PATH_5_FULL_CYCLE` (Comprehensive Disputed / High-Risk Application)**
    - *Application Categories*: New University Constituent colleges or complex mergers with legal covenants.
-   - *Stage Sequence*: `SUBMITTED` -> `SCRUTINY` -> `RE_SCRUTINY` -> `EVC_PENDING` -> `EVC_SCHEDULED` -> `EVC_COMPLETED` -> `SAC_SHC_REVIEW` -> `APPROVAL_GRANTED` / `APPROVAL_REJECTED`.
+   - *Stage Sequence*: `SUBMITTED` -> `SCRUTINY` -> `RE_SCRUTINY` -> `EVC_PENDING` -> `EVC_SCHEDULED` -> `EVC_COMPLETED` -> `SAC_SHC_REVIEW` -> `APPROVAL_GRANTED` / `APPROVAL_REJECTED` -> `CLOSED`.
 
 ---
 
@@ -32,30 +32,32 @@ Under the AICTE Approval Process Handbook (APH), an application is classified in
 
 ```mermaid
 stateDiagram-v2
-    [*] --> SUBMITTED: Institution Submits
+    [*] --> SUBMITTED: Institution Submits [WITH_AICTE]
     
-    SUBMITTED --> SCRUTINY: Auto-allocated to Scrutiny Officer
+    SUBMITTED --> SCRUTINY: Auto-allocated to Scrutiny Officer [WITH_AICTE]
     
-    SCRUTINY --> RE_SCRUTINY: Reverted for Deficiencies (Reason Mandatory)
-    RE_SCRUTINY --> SCRUTINY: Institution Re-submits Evidence
+    SCRUTINY --> RE_SCRUTINY: Reverted for Deficiencies (Clock Pauses) [WITH_INSTITUTION]
+    RE_SCRUTINY --> SCRUTINY: Institution Clarification Response (Clock Resumes) [WITH_AICTE]
     
     SCRUTINY --> EVC_PENDING: Scrutiny Cleared (If Path requires EVC)
-    SCRUTINY --> APPROVAL_GRANTED: Scrutiny Cleared (If Scrutiny-Only Path)
-    SCRUTINY --> APPROVAL_REJECTED: Final Rejection by Competent Authority
+    SCRUTINY --> APPROVAL_GRANTED: Decision Rendered by Competent Authority
+    SCRUTINY --> APPROVAL_REJECTED: Decision Rendered by Competent Authority
     
     EVC_PENDING --> EVC_SCHEDULED: EVC Coordinator sets Date & Experts
     EVC_SCHEDULED --> EVC_COMPLETED: Inspection Done & Report Submitted
     
-    EVC_COMPLETED --> SAC_SHC_REVIEW: Referred to Hearing (Deficiencies/Appeals)
-    EVC_COMPLETED --> APPROVAL_GRANTED: Clean Report & Regional Head Endorsement
-    EVC_COMPLETED --> APPROVAL_REJECTED: Serious Non-compliance
+    EVC_COMPLETED --> SAC_SHC_REVIEW: Referred to Hearing (Advisory input)
+    EVC_COMPLETED --> APPROVAL_GRANTED: Clean Report & Authority Decision
+    EVC_COMPLETED --> APPROVAL_REJECTED: Serious Non-compliance Decision
     
-    SAC_SHC_REVIEW --> EVC_PENDING: Committee Orders Re-EVC
-    SAC_SHC_REVIEW --> APPROVAL_GRANTED: Committee Approves Appeal
-    SAC_SHC_REVIEW --> APPROVAL_REJECTED: Appeal Rejected
+    SAC_SHC_REVIEW --> EVC_PENDING: Committee Advisory: Re-EVC
+    SAC_SHC_REVIEW --> APPROVAL_GRANTED: Authority Decision: Grant Approval
+    SAC_SHC_REVIEW --> APPROVAL_REJECTED: Authority Decision: Reject Appeal
     
-    APPROVAL_GRANTED --> [*]
-    APPROVAL_REJECTED --> [*]
+    APPROVAL_GRANTED --> CLOSED: Close Case Action (All Undertakings Verified/Clear)
+    APPROVAL_REJECTED --> CLOSED: Close Case Action (Final Archival)
+    
+    CLOSED --> [*]
 ```
 
 ---

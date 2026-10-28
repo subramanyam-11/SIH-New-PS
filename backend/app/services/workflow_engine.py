@@ -5,9 +5,12 @@ from sqlalchemy.orm import Session
 from app.models import (
     Application, StageHistory, Stage, StagePath, ApplicationCategory,
     Institution, User, UserRoleEnum, ApplicationStatusEnum, StageStatusEnum,
-    SystemConfig, ApplicationCommunication, CommunicationTemplate
+    SystemConfig, ApplicationCommunication, CommunicationTemplate,
+    ClockSegment, Alert, AlertStatusEnum, AlertTypeEnum, Undertaking,
+    UndertakingStatusEnum, ClosureReasonEnum, UploadedFile
 )
 from app.services.clock import get_system_time, compute_stage_due_date, calculate_sla_status, normalize_dt
+from app.services.working_day_service import WorkingDayService
 from app.services.audit import log_audit_event
 from app.services.llm import get_llm_client
 
@@ -151,6 +154,16 @@ class WorkflowEngine:
             duration_hours=0.0
         )
         db.add(history)
+
+        # Initial Clock Segment (WITH_AICTE)
+        initial_clock = ClockSegment(
+            application_id=application.id,
+            stage_id=initial_stage.id,
+            holder="WITH_AICTE",
+            started_at=now,
+            reason="Initial application dossier submission and statutory docketing"
+        )
+        db.add(initial_clock)
 
         # Generate Draft Routine Communication (Application Docketed)
         generate_draft_communication(
@@ -320,9 +333,29 @@ class WorkflowEngine:
 
         # 5. Apply State Update
         application.current_stage_id = next_stage.id
+        application.case_holder = "WITH_AICTE"
         application.stage_entered_at = now
-        application.stage_due_date = compute_stage_due_date(now, next_stage.default_sla_days)
+        application.stage_due_date = compute_stage_due_date(now, next_stage.default_sla_days, db=db, region_id=application.region_id)
         application.updated_at = now
+
+        # Close open clock segment
+        active_seg = db.query(ClockSegment).filter(
+            ClockSegment.application_id == application.id,
+            ClockSegment.ended_at.is_(None)
+        ).order_by(ClockSegment.id.desc()).first()
+        if active_seg:
+            active_seg.ended_at = now
+            active_seg.duration_hours = max(0.01, round((now - normalize_dt(active_seg.started_at)).total_seconds() / 3600.0, 2))
+
+        # Open new clock segment for next stage
+        new_seg = ClockSegment(
+            application_id=application.id,
+            stage_id=next_stage.id,
+            holder="WITH_AICTE",
+            started_at=now,
+            reason=remarks or f"Advanced to '{next_stage.name}'"
+        )
+        db.add(new_seg)
 
         # Create New Stage History Entry
         new_history = StageHistory(
@@ -466,10 +499,42 @@ class WorkflowEngine:
 
         # Update Application
         application.current_stage_id = re_scrutiny_stage.id
+        application.case_holder = "WITH_INSTITUTION"
         application.revert_count += 1
         application.stage_entered_at = now
-        application.stage_due_date = compute_stage_due_date(now, re_scrutiny_stage.default_sla_days)
+        application.stage_due_date = compute_stage_due_date(now, re_scrutiny_stage.default_sla_days, db=db, region_id=application.region_id)
         application.updated_at = now
+
+        # Close open clock segment
+        active_seg = db.query(ClockSegment).filter(
+            ClockSegment.application_id == application.id,
+            ClockSegment.ended_at.is_(None)
+        ).order_by(ClockSegment.id.desc()).first()
+        if active_seg:
+            active_seg.ended_at = now
+            active_seg.duration_hours = max(0.01, round((now - normalize_dt(active_seg.started_at)).total_seconds() / 3600.0, 2))
+
+        # Open WITH_INSTITUTION segment (pauses the AICTE processing clock)
+        inst_seg = ClockSegment(
+            application_id=application.id,
+            stage_id=re_scrutiny_stage.id,
+            holder="WITH_INSTITUTION",
+            started_at=now,
+            reason=f"Returned for clarification: {reason}"
+        )
+        db.add(inst_seg)
+
+        # Auto-resolve existing near-breach and overdue alerts on pause
+        open_alerts = db.query(Alert).filter(
+            Alert.application_id == application.id,
+            Alert.status.in_([AlertStatusEnum.ACTIVE, AlertStatusEnum.ACKNOWLEDGED, AlertStatusEnum.ESCALATED]),
+            Alert.alert_type.in_([AlertTypeEnum.NEAR_BREACH, AlertTypeEnum.OVERDUE])
+        ).all()
+        for a in open_alerts:
+            a.status = AlertStatusEnum.RESOLVED
+            a.resolved_at = now
+            a.resolved_by = actor.id
+            a.resolution_remarks = "clock paused: with institution"
 
         # Add Revert History
         revert_history = StageHistory(
@@ -608,6 +673,25 @@ class WorkflowEngine:
         application.stage_entered_at = now
         application.updated_at = now
 
+        # Close open clock segment
+        active_seg = db.query(ClockSegment).filter(
+            ClockSegment.application_id == application.id,
+            ClockSegment.ended_at.is_(None)
+        ).order_by(ClockSegment.id.desc()).first()
+        if active_seg:
+            active_seg.ended_at = now
+            active_seg.duration_hours = max(0.01, round((now - normalize_dt(active_seg.started_at)).total_seconds() / 3600.0, 2))
+
+        # Open segment for decision stage
+        dec_seg = ClockSegment(
+            application_id=application.id,
+            stage_id=target_stage.id,
+            holder="WITH_AICTE",
+            started_at=now,
+            reason=f"Decision rendered: {decision_upper}"
+        )
+        db.add(dec_seg)
+
         # Add History
         decision_history = StageHistory(
             application_id=application.id,
@@ -655,3 +739,311 @@ class WorkflowEngine:
         db.commit()
         db.refresh(application)
         return application
+
+    @staticmethod
+    def institution_response(
+        db: Session,
+        application_id: int,
+        actor: User,
+        remarks: str,
+        file_id: Optional[int] = None,
+        response_time: Optional[datetime] = None
+    ) -> Application:
+        """
+        Submits clarification/response from applicant institution.
+        Moves case from WITH_INSTITUTION back to WITH_AICTE and resets stage SLA.
+        """
+        now = normalize_dt(response_time or get_system_time())
+
+        application = db.query(Application).filter(Application.id == application_id).with_for_update().first()
+        if not application:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Application not found")
+
+        if application.status == ApplicationStatusEnum.CLOSED:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot respond to a closed application.")
+
+        if application.case_holder != "WITH_INSTITUTION":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Application is currently with AICTE; institution response is only permitted when case is WITH_INSTITUTION."
+            )
+
+        user_role = actor.role.code
+        if user_role == UserRoleEnum.INSTITUTION_USER and actor.institution_id != application.institution_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: Cannot respond on behalf of another institution."
+            )
+
+        if not remarks or len(remarks.strip()) < 5:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Written response remarks explaining clarification are mandatory (min 5 characters)."
+            )
+
+        # Close active WITH_INSTITUTION segment
+        active_seg = db.query(ClockSegment).filter(
+            ClockSegment.application_id == application.id,
+            ClockSegment.ended_at.is_(None)
+        ).order_by(ClockSegment.id.desc()).first()
+        if active_seg:
+            active_seg.ended_at = now
+            active_seg.duration_hours = max(0.01, round((now - normalize_dt(active_seg.started_at)).total_seconds() / 3600.0, 2))
+
+        # Set holder back to WITH_AICTE
+        application.case_holder = "WITH_AICTE"
+
+        # Calculate fresh stage SLA in working days
+        re_scrutiny_stage = application.current_stage
+        sla_days = re_scrutiny_stage.default_sla_days or 5
+        application.stage_entered_at = now
+        application.stage_due_date = compute_stage_due_date(now, sla_days, db=db, region_id=application.region_id)
+        application.updated_at = now
+
+        # Open fresh WITH_AICTE clock segment
+        new_seg = ClockSegment(
+            application_id=application.id,
+            stage_id=re_scrutiny_stage.id,
+            holder="WITH_AICTE",
+            started_at=now,
+            reason=f"Institution response: {remarks}"
+        )
+        db.add(new_seg)
+
+        # Record StageHistory
+        hist = StageHistory(
+            application_id=application.id,
+            from_stage_id=re_scrutiny_stage.id,
+            to_stage_id=re_scrutiny_stage.id,
+            action_taken="INSTITUTION_RESPONSE",
+            actor_id=actor.id,
+            status=StageStatusEnum.IN_PROGRESS,
+            reason=remarks,
+            entered_at=now,
+            completed_at=None,
+            duration_hours=0.0
+        )
+        db.add(hist)
+
+        # Log audit event
+        log_audit_event(
+            db=db,
+            table_name="applications",
+            record_id=application.id,
+            action="INSTITUTION_RESPONSE",
+            actor_id=actor.id,
+            new_values={"holder": "WITH_AICTE", "remarks": remarks, "file_id": file_id}
+        )
+
+        db.commit()
+        db.refresh(application)
+        return application
+
+    @staticmethod
+    def close_application(
+        db: Session,
+        application_id: int,
+        actor: User,
+        closure_reason: str,
+        closure_remarks: Optional[str] = None,
+        close_time: Optional[datetime] = None
+    ) -> Application:
+        """
+        Statutory closure of application after decision rendered or withdrawal.
+        Blocks closure if any condition/undertaking is still open.
+        """
+        now = normalize_dt(close_time or get_system_time())
+
+        application = db.query(Application).filter(Application.id == application_id).with_for_update().first()
+        if not application:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Application not found")
+
+        if application.status == ApplicationStatusEnum.CLOSED:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Application is already closed.")
+
+        # Permission check: Competent Authority, Regional Head, Admin
+        user_role = actor.role.code
+        allowed_roles = [UserRoleEnum.COMPETENT_AUTHORITY, UserRoleEnum.REGIONAL_HEAD, UserRoleEnum.ADMIN]
+        if user_role not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Role '{user_role.value}' is not authorized to close applications."
+            )
+
+        if user_role == UserRoleEnum.REGIONAL_HEAD and actor.region_id != application.region_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied. Regional Head can only close applications in their own region."
+            )
+
+        # Closure reason validation
+        valid_reasons = [
+            ClosureReasonEnum.ALL_CONDITIONS_MET.value,
+            ClosureReasonEnum.REJECTED_FINAL.value,
+            ClosureReasonEnum.WITHDRAWN_BY_INSTITUTION.value,
+            ClosureReasonEnum.SUPERSEDED.value,
+            ClosureReasonEnum.OTHER.value
+        ]
+        if closure_reason not in valid_reasons:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Invalid closure reason '{closure_reason}'. Allowed: {valid_reasons}"
+            )
+
+        if closure_reason == ClosureReasonEnum.OTHER.value and (not closure_remarks or len(closure_remarks.strip()) < 10):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Closure reason 'OTHER' requires detailed justification remarks (at least 10 characters)."
+            )
+
+        # Block closure if any undertaking on that application is still open (not verified or complied)
+        open_undertakings = db.query(Undertaking).filter(
+            Undertaking.application_id == application.id,
+            ~Undertaking.status.in_([UndertakingStatusEnum.VERIFIED, UndertakingStatusEnum.COMPLIED])
+        ).all()
+        if open_undertakings:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot close case: Application has {len(open_undertakings)} open undertaking(s) pending compliance or verification."
+            )
+
+        # Close active clock segment
+        active_seg = db.query(ClockSegment).filter(
+            ClockSegment.application_id == application.id,
+            ClockSegment.ended_at.is_(None)
+        ).order_by(ClockSegment.id.desc()).first()
+        if active_seg:
+            active_seg.ended_at = now
+            active_seg.duration_hours = max(0.01, round((now - normalize_dt(active_seg.started_at)).total_seconds() / 3600.0, 2))
+
+        closed_stage = db.query(Stage).filter(Stage.code == "CLOSED").first()
+        if not closed_stage:
+            closed_stage = Stage(
+                code="CLOSED",
+                name="Case Closed",
+                default_sla_days=0,
+                responsible_role=UserRoleEnum.COMPETENT_AUTHORITY,
+                description="Application lifecycle completed and archived with recorded closure reason"
+            )
+            db.add(closed_stage)
+            db.flush()
+
+        old_stage_id = application.current_stage_id
+        application.status = ApplicationStatusEnum.CLOSED
+        application.current_stage_id = closed_stage.id
+        application.closed_at = now
+        application.closure_reason = closure_reason
+        application.closure_remarks = closure_remarks
+        application.case_holder = "WITH_AICTE"
+        application.updated_at = now
+
+        # Record stage history
+        hist = StageHistory(
+            application_id=application.id,
+            from_stage_id=old_stage_id,
+            to_stage_id=closed_stage.id,
+            action_taken="CLOSE_CASE",
+            actor_id=actor.id,
+            status=StageStatusEnum.COMPLETED,
+            reason=f"Case closed: {closure_reason}. {closure_remarks or ''}",
+            entered_at=now,
+            completed_at=now,
+            duration_hours=0.0
+        )
+        db.add(hist)
+
+        # Auto-resolve open alerts for that application with recorded reason
+        open_alerts = db.query(Alert).filter(
+            Alert.application_id == application.id,
+            Alert.status.in_([AlertStatusEnum.ACTIVE, AlertStatusEnum.ACKNOWLEDGED, AlertStatusEnum.ESCALATED, AlertStatusEnum.SNOOZED])
+        ).all()
+        for a in open_alerts:
+            a.status = AlertStatusEnum.RESOLVED
+            a.resolved_at = now
+            a.resolved_by = actor.id
+            a.resolution_remarks = f"Case closed: {closure_reason}"
+
+        # Notify institution
+        generate_draft_communication(
+            db=db,
+            application=application,
+            template_code="CASE_CLOSED",
+            context={
+                "application_number": application.application_number,
+                "institution_name": application.institution.name,
+                "closure_reason": closure_reason,
+                "closure_remarks": closure_remarks or "None",
+                "closed_at": now.strftime("%d-%b-%Y")
+            }
+        )
+
+        # Audit Log
+        log_audit_event(
+            db=db,
+            table_name="applications",
+            record_id=application.id,
+            action="CLOSE_CASE",
+            actor_id=actor.id,
+            new_values={
+                "status": "CLOSED",
+                "closure_reason": closure_reason,
+                "closure_remarks": closure_remarks,
+                "closed_at": now.isoformat()
+            }
+        )
+
+        db.commit()
+        db.refresh(application)
+        return application
+
+    @staticmethod
+    def get_application_pendency(db: Session, application: Application) -> Dict[str, Any]:
+        """
+        Calculates fair pendency metrics split into WITH_AICTE and WITH_INSTITUTION.
+        Elapsed time for SLA counts ONLY WITH_AICTE segments.
+        """
+        now = normalize_dt(get_system_time())
+        segments = db.query(ClockSegment).filter(
+            ClockSegment.application_id == application.id
+        ).order_by(ClockSegment.started_at.asc()).all()
+
+        aicte_hours = 0.0
+        institution_hours = 0.0
+        stage_aicte_hours = 0.0
+
+        if len(segments) == 0:
+            # Fallback for applications before clock segments are backfilled
+            entered_at = normalize_dt(application.stage_entered_at) if application.stage_entered_at else now
+            stage_dur = max(0.0, (now - entered_at).total_seconds() / 3600.0)
+            if application.case_holder == "WITH_INSTITUTION":
+                institution_hours = stage_dur
+            else:
+                stage_aicte_hours = stage_dur
+                aicte_hours = stage_dur
+        else:
+            for seg in segments:
+                dur = seg.duration_hours
+                if dur is None:
+                    dur = max(0.0, (now - normalize_dt(seg.started_at)).total_seconds() / 3600.0)
+                
+                if seg.holder == "WITH_AICTE":
+                    aicte_hours += dur
+                    if seg.stage_id == application.current_stage_id:
+                        stage_aicte_hours += dur
+                elif seg.holder == "WITH_INSTITUTION":
+                    institution_hours += dur
+
+        is_paused = (application.case_holder == "WITH_INSTITUTION" or application.status == ApplicationStatusEnum.CLOSED)
+        days_in_stage_aicte = round(stage_aicte_hours / 24.0, 1)
+
+        return {
+            "case_holder": application.case_holder,
+            "is_paused": is_paused,
+            "total_aicte_hours": round(aicte_hours, 2),
+            "total_institution_hours": round(institution_hours, 2),
+            "total_aicte_days": round(aicte_hours / 24.0, 1),
+            "total_institution_days": round(institution_hours / 24.0, 1),
+            "current_stage_aicte_hours": round(stage_aicte_hours, 2),
+            "current_stage_aicte_days": days_in_stage_aicte,
+            "segments_count": len(segments)
+        }

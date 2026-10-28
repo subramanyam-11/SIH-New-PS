@@ -1,6 +1,6 @@
 from typing import Optional, List, Any, Dict
 from pydantic import BaseModel, EmailStr, ConfigDict
-from datetime import datetime
+from datetime import datetime, date
 from app.models import UserRoleEnum
 
 
@@ -269,6 +269,42 @@ class ApplicationOut(BaseModel):
     delay_risk_score: float = 0.0
     approval_letter_ref: Optional[str] = None
 
+    # Phase 6 Fair Pendency Clock & Closed State fields
+    case_holder: str = "WITH_AICTE"
+    closed_at: Optional[datetime] = None
+    closure_reason: Optional[str] = None
+    closure_remarks: Optional[str] = None
+    is_paused: Optional[bool] = False
+    total_aicte_days: Optional[float] = None
+    total_institution_days: Optional[float] = None
+
+
+class ClockSegmentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    application_id: int
+    stage_id: int
+    stage_name: Optional[str] = None
+    holder: str
+    started_at: datetime
+    ended_at: Optional[datetime] = None
+    duration_hours: Optional[float] = None
+    reason: Optional[str] = None
+
+
+class CommitteeObservationOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    application_id: int
+    committee_type: str
+    user_id: int
+    member_name: str
+    observation_text: str
+    recommendation: str
+    created_at: datetime
+
 
 class ApplicationDetailOut(ApplicationOut):
     institution: InstitutionOut
@@ -278,6 +314,8 @@ class ApplicationDetailOut(ApplicationOut):
     approval_letter_data: Optional[Dict[str, Any]] = None
     communications: List[CommunicationOut] = []
     case_summary: Optional[CaseSummaryOut] = None
+    clock_segments: List[ClockSegmentOut] = []
+    committee_observations: List[CommitteeObservationOut] = []
 
 
 # --- PHASE 4 SCHEMAS ---
@@ -460,5 +498,278 @@ class SchedulerRunOut(BaseModel):
     status: str
     triggered_by: str
     details: Dict[str, Any]
+
+
+# --- PHASE 5 SCHEMAS ---
+
+class UploadedFileOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    original_filename: str
+    stored_filename: str
+    file_size_bytes: int
+    mime_type: str
+    checksum_sha256: str
+    entity_type: Optional[str] = None
+    entity_id: Optional[int] = None
+    uploaded_by: Optional[int] = None
+    created_at: datetime
+
+
+class EvcExpertOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    designation: str
+    discipline: str
+    region: str
+    home_institution: str
+    home_city: str
+    max_concurrent_visits: int
+    active_visits_count: int
+    is_available: bool
+
+
+class EvcExpertConflictInfo(BaseModel):
+    has_conflict: bool
+    reasons: List[str]
+
+
+class SuggestedExpertOut(BaseModel):
+    expert: EvcExpertOut
+    score: float
+    rank: int
+    conflict_info: EvcExpertConflictInfo
+
+
+class EvcVisitOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    application_id: int
+    application_number: Optional[str] = None
+    institution_id: Optional[int] = None
+    institution_name: Optional[str] = None
+    institution_city: Optional[str] = None
+    region_id: Optional[int] = None
+    region_name: Optional[str] = None
+    is_new_institution: bool = False
+    stage_id: int
+    status: str
+    assigned_experts: Optional[List[Dict[str, Any]]] = None
+    scheduled_date: Optional[date] = None
+    scheduled_time: Optional[str] = None
+    completed_at: Optional[datetime] = None
+    visit_summary: Optional[str] = None
+    report_file_id: Optional[int] = None
+    closed_at: Optional[datetime] = None
+    closed_by: Optional[int] = None
+    days_waiting: float = 0.0
+    created_at: datetime
+
+
+class EvcPanelAssignRequest(BaseModel):
+    expert_ids: List[int]
+
+
+class EvcScheduleRequest(BaseModel):
+    scheduled_date: date
+    scheduled_time: Optional[str] = "10:00 AM"
+
+
+class EvcVisitDoneRequest(BaseModel):
+    visit_summary: str
+
+
+class EvcCloseRequest(BaseModel):
+    remarks: Optional[str] = None
+
+
+class UndertakingEvidenceOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    undertaking_id: int
+    file_id: Optional[int] = None
+    file_name: Optional[str] = None
+    file_url: Optional[str] = None
+    comments: Optional[str] = None
+    uploaded_by: int
+    uploaded_by_name: Optional[str] = None
+    uploaded_at: datetime
+
+
+class UndertakingHistoryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    undertaking_id: int
+    from_status: Optional[str] = None
+    to_status: str
+    action: str
+    remarks: Optional[str] = None
+    actor_id: int
+    actor_name: Optional[str] = None
+    actor_role: Optional[str] = None
+    created_at: datetime
+
+
+class UndertakingOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    application_id: int
+    application_number: Optional[str] = None
+    institution_id: int
+    institution_name: Optional[str] = None
+    region_id: Optional[int] = None
+    region_name: Optional[str] = None
+    clause_number: Optional[str] = None
+    title: str
+    description: str
+    due_date: date
+    status: str
+    is_overdue: bool = False
+    days_until_due: Optional[int] = None
+    compliance_evidence_url: Optional[str] = None
+    remarks: Optional[str] = None
+    rejection_count: int = 0
+    escalated_to_tier: Optional[int] = None
+    escalation_reason: Optional[str] = None
+    created_at: datetime
+    evidences: List[UndertakingEvidenceOut] = []
+    history: List[UndertakingHistoryOut] = []
+
+
+class UndertakingVerifyRequest(BaseModel):
+    action: str  # 'VERIFIED', 'REJECTED', 'NEEDS_MORE_EVIDENCE'
+    remarks: Optional[str] = None
+
+
+class DocumentVersionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    document_type: str
+    title: str
+    document_number: Optional[str] = None
+    file_id: Optional[int] = None
+    file_name: Optional[str] = None
+    version_number: int = 1
+    issue_date: Optional[date] = None
+    expiry_date: Optional[date] = None
+    status: str
+    verified_by_name: Optional[str] = None
+    created_at: datetime
+
+
+class DocumentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    institution_id: int
+    institution_name: Optional[str] = None
+    region_id: Optional[int] = None
+    region_name: Optional[str] = None
+    application_id: Optional[int] = None
+    document_type: str
+    title: str
+    document_number: Optional[str] = None
+    file_id: Optional[int] = None
+    file_name: Optional[str] = None
+    version_number: int = 1
+    previous_version_id: Optional[int] = None
+    issue_date: Optional[date] = None
+    expiry_date: Optional[date] = None
+    status: str
+    verified_by: Optional[int] = None
+    verified_by_name: Optional[str] = None
+    verification_remarks: Optional[str] = None
+    verified_at: Optional[datetime] = None
+    days_until_expiry: Optional[int] = None
+    urgency_bucket: str = "VALID"
+    history: List[DocumentVersionOut] = []
+
+
+class DocumentVerifyRenewalRequest(BaseModel):
+    approved: Optional[bool] = None
+    action: Optional[str] = None
+    remarks: Optional[str] = None
+    approved_expiry_date: Optional[date] = None
+
+    @property
+    def is_approved(self) -> bool:
+        if self.approved is not None:
+            return self.approved
+        if self.action:
+            return self.action.upper() in ["APPROVE", "APPROVED", "VERIFIED"]
+        return False
+
+
+# --- PHASE 6 (v2 ALIGNMENT) SCHEMAS ---
+
+class InstitutionResponseRequest(BaseModel):
+    remarks: str
+    file_id: Optional[int] = None
+
+
+class CloseApplicationRequest(BaseModel):
+    closure_reason: str
+    closure_remarks: Optional[str] = None
+
+
+class HolidayCreate(BaseModel):
+    date: date
+    name: str
+    region_id: Optional[int] = None
+    holiday_type: Optional[str] = "NATIONAL"
+
+
+class HolidayUpdate(BaseModel):
+    date: Optional[date] = None
+    name: Optional[str] = None
+    region_id: Optional[int] = None
+    holiday_type: Optional[str] = None
+
+
+class HolidayOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    date: date
+    name: str
+    region_id: Optional[int] = None
+    region_name: Optional[str] = None
+    holiday_type: str
+    created_at: datetime
+
+
+class CommitteeObservationCreate(BaseModel):
+    committee_type: str
+    observation_text: str
+    recommendation: str  # RECOMMEND_APPROVAL, RECOMMEND_REJECTION, RECOMMEND_RE_INSPECTION, NEEDS_CLARIFICATION
+
+
+class CommitteeAssignmentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    application_id: int
+    application_number: Optional[str] = None
+    institution_name: Optional[str] = None
+    committee_type: str
+    user_id: int
+    assigned_at: datetime
+    status: str
+    notes: Optional[str] = None
+    observations: List[CommitteeObservationOut] = []
+
+
+class OverdueCasesReportOut(BaseModel):
+    summary: Dict[str, Any]
+    items: List[Dict[str, Any]]
+
 
 

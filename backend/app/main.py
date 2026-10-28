@@ -11,6 +11,13 @@ from app.api.v1.config import router as config_router
 from app.api.v1.lookup import router as lookup_router
 from app.api.v1.applications import router as applications_router
 from app.api.v1.alerts import router as alerts_router
+from app.api.v1.files import router as files_router
+from app.api.v1.evc import router as evc_router
+from app.api.v1.undertakings import router as undertakings_router
+from app.api.v1.documents import router as documents_router
+from app.api.v1.reports import router as reports_router
+from app.api.v1.committee import router as committee_router
+from app.api.v1.holidays import router as holidays_router
 from app.services.scheduler import start_scheduler, stop_scheduler
 from app.schemas import HealthCheckResponse
 
@@ -82,6 +89,13 @@ app.include_router(config_router, prefix="/api/v1")
 app.include_router(lookup_router, prefix="/api/v1")
 app.include_router(applications_router, prefix="/api/v1")
 app.include_router(alerts_router, prefix="/api/v1")
+app.include_router(files_router, prefix="/api/v1")
+app.include_router(evc_router, prefix="/api/v1")
+app.include_router(undertakings_router, prefix="/api/v1")
+app.include_router(documents_router, prefix="/api/v1")
+app.include_router(reports_router, prefix="/api/v1")
+app.include_router(committee_router, prefix="/api/v1")
+app.include_router(holidays_router, prefix="/api/v1")
 
 
 if __name__ == "__main__":

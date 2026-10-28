@@ -10,9 +10,11 @@ import { useAuth } from '@/lib/auth';
 import {
   configApi,
   adminApi,
+  holidaysApi,
   AlertRule,
   EscalationRuleItem,
-  Stage
+  Stage,
+  HolidayItem
 } from '@/lib/api';
 import {
   Sliders,
@@ -23,17 +25,29 @@ import {
   Check,
   X,
   AlertTriangle,
-  RotateCcw
+  RotateCcw,
+  Calendar,
+  Trash2,
+  Plus
 } from 'lucide-react';
 
 export default function RulesSettingsPage() {
   const { scope } = useAuth();
-  const [activeTab, setActiveTab] = useState<'STAGES' | 'ALERT_RULES' | 'ESCALATION_RULES'>('ALERT_RULES');
+  const [activeTab, setActiveTab] = useState<'STAGES' | 'ALERT_RULES' | 'ESCALATION_RULES' | 'HOLIDAYS'>('ALERT_RULES');
 
   const [stages, setStages] = useState<Stage[]>([]);
   const [alertRules, setAlertRules] = useState<AlertRule[]>([]);
   const [escalationRules, setEscalationRules] = useState<EscalationRuleItem[]>([]);
+  const [holidays, setHolidays] = useState<HolidayItem[]>([]);
+  const [weekendDays, setWeekendDays] = useState<number[]>([5, 6]);
   const [loading, setLoading] = useState<boolean>(true);
+
+  // Holiday form
+  const [holidayDate, setHolidayDate] = useState<string>('');
+  const [holidayName, setHolidayName] = useState<string>('');
+  const [holidayType, setHolidayType] = useState<string>('NATIONAL');
+  const [addingHoliday, setAddingHoliday] = useState<boolean>(false);
+  const [holidayMessage, setHolidayMessage] = useState<string | null>(null);
 
   // Edit Alert Rule Modal
   const [editingAlertRule, setEditingAlertRule] = useState<AlertRule | null>(null);
@@ -56,18 +70,69 @@ export default function RulesSettingsPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [stgRes, alertRulesRes, escRulesRes] = await Promise.all([
+      const [stgRes, alertRulesRes, escRulesRes, holRes, wkRes] = await Promise.all([
         configApi.getStages(),
         adminApi.getAlertRules(),
         adminApi.getEscalationRules(),
+        holidaysApi.getHolidays().catch(() => []),
+        holidaysApi.getWeekendConfig().catch(() => ({ weekend_days: [5, 6], weekend_names: ['Saturday', 'Sunday'] })),
       ]);
       setStages(stgRes);
       setAlertRules(alertRulesRes);
       setEscalationRules(escRulesRes);
+      setHolidays(holRes);
+      setWeekendDays(wkRes.weekend_days || [5, 6]);
     } catch (err) {
       console.error('Failed to load rules', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAddHoliday = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!holidayDate || !holidayName.trim()) return;
+    setAddingHoliday(true);
+    setHolidayMessage(null);
+    try {
+      await holidaysApi.addHoliday({
+        holiday_date: holidayDate,
+        name: holidayName.trim(),
+        holiday_type: holidayType,
+      });
+      setHolidayMessage('✓ Holiday added successfully. Audit entry created.');
+      setHolidayDate('');
+      setHolidayName('');
+      const updated = await holidaysApi.getHolidays();
+      setHolidays(updated);
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Failed to add holiday');
+    } finally {
+      setAddingHoliday(false);
+    }
+  };
+
+  const handleDeleteHoliday = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this holiday?')) return;
+    try {
+      await holidaysApi.deleteHoliday(id);
+      setHolidays(holidays.filter((h) => h.id !== id));
+      setHolidayMessage('✓ Holiday removed. Audit entry created.');
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Failed to delete holiday');
+    }
+  };
+
+  const handleToggleWeekend = async (day: number) => {
+    const updated = weekendDays.includes(day)
+      ? weekendDays.filter((d) => d !== day)
+      : [...weekendDays, day].sort();
+    setWeekendDays(updated);
+    try {
+      await holidaysApi.updateWeekendConfig(updated);
+      setHolidayMessage('✓ Weekend days configuration updated. Audit entry created.');
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Failed to update weekend configuration');
     }
   };
 
@@ -176,6 +241,17 @@ export default function RulesSettingsPage() {
             }`}
           >
             Stage SLAs
+          </button>
+          <button
+            onClick={() => setActiveTab('HOLIDAYS')}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors flex items-center gap-1.5 ${
+              activeTab === 'HOLIDAYS'
+                ? 'bg-blue-900 text-white'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <Calendar className="w-3.5 h-3.5" />
+            <span>Working Days & Holidays</span>
           </button>
         </div>
 
@@ -390,6 +466,187 @@ export default function RulesSettingsPage() {
               </Table>
             </CardContent>
           </Card>
+        )}
+
+        {/* TAB 4: WORKING DAYS & HOLIDAYS */}
+        {activeTab === 'HOLIDAYS' && (
+          <div className="space-y-4">
+            {/* Regulatory Basis Notice */}
+            <Card className="border-blue-200 bg-blue-50/30">
+              <CardContent className="p-4 flex items-start gap-3 text-xs leading-relaxed text-blue-950">
+                <div className="p-1.5 bg-blue-100 rounded text-blue-800 shrink-0">
+                  <Calendar className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="font-bold">Working-Day SLA Basis (Build Plan v2, Sec. 9): </span>
+                  Stage SLAs, EVC scheduling windows, and alert escalation delays count <strong>WORKING DAYS</strong> only. Saturdays, Sundays (or configured weekend days), and listed official holidays pause the countdown. Statutory document expirations (leases, FDRs, NOCs) remain calendar days, with automatic non-working day notes attached whenever a due date falls on a holiday or weekend.
+                </div>
+              </CardContent>
+            </Card>
+
+            {holidayMessage && (
+              <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center justify-between">
+                <span>{holidayMessage}</span>
+                <button onClick={() => setHolidayMessage(null)} className="text-emerald-700 font-bold">&times;</button>
+              </div>
+            )}
+
+            {/* Weekend Configuration */}
+            <Card>
+              <CardHeader className="py-3 px-4 bg-slate-50 border-b flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-sm">Configurable Non-Working Weekend Days</CardTitle>
+                  <CardDescription className="text-xs">Select which weekdays count as statutory non-working days</CardDescription>
+                </div>
+                <Badge variant="neutral">system_config: weekend_days</Badge>
+              </CardHeader>
+              <CardContent className="p-4 text-xs">
+                <div className="flex flex-wrap gap-4">
+                  {[
+                    { day: 0, name: 'Monday' },
+                    { day: 1, name: 'Tuesday' },
+                    { day: 2, name: 'Wednesday' },
+                    { day: 3, name: 'Thursday' },
+                    { day: 4, name: 'Friday' },
+                    { day: 5, name: 'Saturday' },
+                    { day: 6, name: 'Sunday' },
+                  ].map((d) => (
+                    <label key={d.day} className="flex items-center gap-2 cursor-pointer font-medium">
+                      <input
+                        type="checkbox"
+                        checked={weekendDays.includes(d.day)}
+                        onChange={() => handleToggleWeekend(d.day)}
+                        className="rounded text-blue-800"
+                        disabled={!isAdmin}
+                      />
+                      <span className={weekendDays.includes(d.day) ? 'font-bold text-blue-900' : 'text-slate-600'}>
+                        {d.name}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Add Holiday Form (Admin Only) */}
+            {isAdmin && (
+              <Card>
+                <CardHeader className="py-3 px-4 bg-slate-50 border-b">
+                  <CardTitle className="text-sm flex items-center gap-1.5">
+                    <Plus className="w-4 h-4 text-blue-700" />
+                    <span>Add Official Holiday</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4">
+                  <form onSubmit={handleAddHoliday} className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs items-end">
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1">Holiday Date</label>
+                      <input
+                        type="date"
+                        value={holidayDate}
+                        onChange={(e) => setHolidayDate(e.target.value)}
+                        className="w-full p-2 border border-slate-300 rounded bg-white"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1">Holiday Name</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Republic Day"
+                        value={holidayName}
+                        onChange={(e) => setHolidayName(e.target.value)}
+                        className="w-full p-2 border border-slate-300 rounded bg-white"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1">Holiday Type</label>
+                      <select
+                        value={holidayType}
+                        onChange={(e) => setHolidayType(e.target.value)}
+                        className="w-full p-2 border border-slate-300 rounded bg-white"
+                      >
+                        <option value="NATIONAL">NATIONAL (All Regions)</option>
+                        <option value="REGIONAL">REGIONAL (State Specific)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <Button type="submit" size="sm" disabled={addingHoliday} className="w-full bg-blue-800 hover:bg-blue-900 text-white">
+                        {addingHoliday ? 'Adding...' : 'Add Holiday'}
+                      </Button>
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Official Holiday List Table */}
+            <Card className="overflow-hidden shadow-sm">
+              <CardHeader className="py-3 px-4 bg-slate-50 border-b flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-sm">Official AICTE Statutory Calendar Holidays</CardTitle>
+                  <CardDescription className="text-xs">
+                    Sample holiday list, to be replaced by the official AICTE calendar ({holidays.length} seeded dates)
+                  </CardDescription>
+                </div>
+                <Badge variant="neutral">Database: holidays</Badge>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Holiday Name</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Region Jurisdiction</TableHead>
+                      {isAdmin && <TableHead className="text-right">Action</TableHead>}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {holidays.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="py-6 text-center text-slate-400 text-xs">
+                          No holidays recorded in calendar table.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      holidays.map((h) => (
+                        <TableRow key={h.id}>
+                          <TableCell className="font-mono text-xs font-semibold text-slate-800">
+                            {h.holiday_date}
+                          </TableCell>
+                          <TableCell className="font-medium text-slate-900 text-xs">
+                            {h.name}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={h.holiday_type === 'NATIONAL' ? 'info' : 'neutral'} size="sm">
+                              {h.holiday_type}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs text-slate-600">
+                            {h.region_name || 'All India (National)'}
+                          </TableCell>
+                          {isAdmin && (
+                            <TableCell className="text-right">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleDeleteHoliday(h.id)}
+                                className="h-7 text-xs text-rose-600 hover:text-rose-800 hover:bg-rose-50"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </div>
         )}
 
         {/* MODAL: Configure Alert Rule */}

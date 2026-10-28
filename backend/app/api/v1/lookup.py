@@ -31,6 +31,12 @@ ROLE_SCREEN_PERMISSIONS = {
         "/dashboard", "/applications", "/alerts", "/escalation-matrix", "/notifications",
         "/evc-queue", "/document-validity"
     ],
+    UserRoleEnum.BUREAU_OFFICER: [
+        "/dashboard", "/applications", "/alerts", "/escalation-matrix", "/notifications", "/reports"
+    ],
+    UserRoleEnum.COMMITTEE_MEMBER: [
+        "/committee/my-cases"
+    ],
     UserRoleEnum.INSTITUTION_USER: [
         "/portal", "/portal/applications", "/portal/undertakings", "/portal/documents"
     ],

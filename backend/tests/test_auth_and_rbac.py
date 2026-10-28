@@ -143,7 +143,8 @@ def test_config_endpoints():
 
     stages_resp = client.get("/api/v1/config/stages", headers=headers)
     assert stages_resp.status_code == 200
-    assert len(stages_resp.json()) == 9
+    assert len(stages_resp.json()) >= 10
+    assert any(s["code"] == "CLOSED" for s in stages_resp.json())
 
     rules_resp = client.get("/api/v1/config/rules", headers=headers)
     assert rules_resp.status_code == 200

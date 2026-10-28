@@ -59,17 +59,25 @@ erDiagram
   - Institutions submit evidence files (`undertaking_evidence`) reviewed by designated verification officers.
 
 ### D. Explainable Alert & Escalation System
-- **`alert_rules`**: Stores rule code, condition logic in JSONB, severity, and the specific **APH reference clause** (e.g., "APH 2026 Clause 2.4.3: Land Lease Validity").
-- **`alerts`**: When an alert fires, it saves `explanation_meta` capturing:
-  ```json
-  {
-    "rule_code": "RULE_LEASE_90D",
-    "days_until_expiry": 84,
-    "threshold_days": 90,
-    "aph_clause": "APH 2026 Chapter I Clause 1.4(e)"
-  }
-  ```
+- **`alert_rules`**: Stores rule code, condition logic in JSONB, severity, `day_basis` (`WORKING` or `CALENDAR`), and the specific **APH reference clause**.
+- **`alerts`**: When an alert fires, it saves `explanation_meta` capturing rule code, days remaining/overdue, whether working or calendar days were evaluated, and statutory non-working day notes if deadlines hit weekends/holidays.
 - **`escalation_rules`**: Defines multi-tiered ladders (Tier 1: Scrutiny Officer, Tier 2: Regional Head, Tier 3: Competent Authority) based on days overdue.
+
+### E. Phase 6 (v2 Alignment) Additions
+- **`clock_segments`**: Immutable time-tracking segments for fair pendency accounting:
+  - `holder`: `WITH_AICTE` vs `WITH_INSTITUTION`.
+  - `started_at`, `ended_at`, `duration_hours`, `reason`.
+  - Elapsed time for AICTE SLA, ageing buckets, and alerts counts ONLY `WITH_AICTE` segments.
+- **`holidays`**: Statutory calendar definitions:
+  - `date`, `name`, `region_id` (nullable for national holidays), `holiday_type` (`NATIONAL` / `REGIONAL`).
+  - Configurable weekend days in `system_config` (default Saturday=5, Sunday=6).
+- **`committee_assignments` & `committee_observations`**:
+  - Assigns cases to EVC, SAC, or SHC committees.
+  - Records advisory observations and recommendations (`RECOMMEND_APPROVAL`, `RECOMMEND_REJECTION`, `RECOMMEND_RE_INSPECTION`, `NEEDS_CLARIFICATION`).
+  - Strict decision-support: observations never mutate application status or stage automatically.
+- **`applications` (Extended Columns)**:
+  - `case_holder`: Current holder (`WITH_AICTE` or `WITH_INSTITUTION`).
+  - `closed_at`, `closure_reason`, `closure_remarks`: Recorded upon formal statutory archival.
 
 ---
 
@@ -81,7 +89,10 @@ To support sub-second response times on regional and national dashboards, the sc
 | :--- | :--- | :--- |
 | `applications` | `(region_id, current_stage_id, status)` | Fast dashboard slicing by region, stage, and state. |
 | `applications` | `(assigned_officer_id, stage_due_date)` | Instant personal task queues sorted by impending deadlines. |
-| `applications` | `(delay_risk_score DESC)` | High-risk application sorting for executive intervention. |
+| `applications` | `(case_holder, status)` | Fast filtering of active vs institution-paused applications. |
+| `clock_segments`| `(application_id, ended_at)` | Sub-millisecond fair pendency segment rollup and pause checks. |
+| `holidays` | `(date, region_id)` | Fast working-day calendar lookup and skip logic. |
+| `committee_assignments` | `(user_id, status)` | Immediate retrieval of cases assigned to a committee member. |
 | `documents` | `(expiry_date, status)` | High-frequency nightly cron queries checking for expiring leases/NOCs. |
 | `undertakings` | `(due_date, status)` | Fast retrieval of delinquent or pending compliance conditions. |
 | `alerts` | `(recipient_user_id, status)` | Real-time notification badge counts and unread alert feeds. |

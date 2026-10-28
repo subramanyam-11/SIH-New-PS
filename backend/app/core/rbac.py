@@ -81,7 +81,15 @@ class UserScope:
 
     @property
     def is_national(self) -> bool:
-        return self.role_code in [UserRoleEnum.ADMIN, UserRoleEnum.COMPETENT_AUTHORITY]
+        return self.role_code in [UserRoleEnum.ADMIN, UserRoleEnum.COMPETENT_AUTHORITY, UserRoleEnum.BUREAU_OFFICER]
+
+    @property
+    def is_bureau(self) -> bool:
+        return self.role_code == UserRoleEnum.BUREAU_OFFICER
+
+    @property
+    def is_committee(self) -> bool:
+        return self.role_code == UserRoleEnum.COMMITTEE_MEMBER
 
     @property
     def is_regional(self) -> bool:
@@ -97,6 +105,19 @@ class UserScope:
         if self.is_institution:
             return self.institution_id == target_institution_id
         return True  # Regional officers can see institutions within region (checked via DB)
+
+    def can_modify_case(self) -> bool:
+        """Bureau Officer and Committee Member have strictly read-focused or recommendation-only roles."""
+        return self.role_code not in [UserRoleEnum.BUREAU_OFFICER, UserRoleEnum.COMMITTEE_MEMBER, UserRoleEnum.INSTITUTION_USER]
+
+    def can_verify_compliance(self) -> bool:
+        return self.role_code in [UserRoleEnum.SCRUTINY_OFFICER, UserRoleEnum.REGIONAL_HEAD, UserRoleEnum.ADMIN]
+
+    def can_render_decision(self) -> bool:
+        return self.role_code in [UserRoleEnum.COMPETENT_AUTHORITY, UserRoleEnum.ADMIN]
+
+    def can_close_case(self) -> bool:
+        return self.role_code in [UserRoleEnum.COMPETENT_AUTHORITY, UserRoleEnum.REGIONAL_HEAD, UserRoleEnum.ADMIN]
 
 
 def get_user_scope(current_user: User = Depends(get_current_user)) -> UserScope:

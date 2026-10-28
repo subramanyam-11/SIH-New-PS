@@ -150,12 +150,37 @@ export default function ApplicationsListPage() {
     }
   };
 
+  const getHolderBadge = (holder?: string) => {
+    if (holder === 'WITH_INSTITUTION') {
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-900 border border-amber-300" title="Processing clock paused while pending institution response">
+          ⏸ With Inst. (Paused)
+        </span>
+      );
+    }
+    if (holder === 'CLOSED') {
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-200 text-slate-800 border border-slate-300">
+          ✓ Closed
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-200">
+        ▶ With AICTE
+      </span>
+    );
+  };
+
   const getStatusBadge = (status: string) => {
     if (status === 'APPROVED') {
       return <Badge variant="success">Approved</Badge>;
     }
     if (status === 'REJECTED') {
       return <Badge variant="danger">Rejected</Badge>;
+    }
+    if (status === 'CLOSED') {
+      return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-slate-200 text-slate-800 border border-slate-300">Closed</span>;
     }
     return <Badge variant="info">In Progress</Badge>;
   };
@@ -268,6 +293,7 @@ export default function ApplicationsListPage() {
                   <option value="IN_PROGRESS">In Progress</option>
                   <option value="APPROVED">Approved</option>
                   <option value="REJECTED">Rejected</option>
+                  <option value="CLOSED">Closed</option>
                 </select>
               </div>
             </form>
@@ -284,7 +310,7 @@ export default function ApplicationsListPage() {
                   <th className="py-2.5 px-3">Institution & Region</th>
                   <th className="py-2.5 px-3">Pathway</th>
                   <th className="py-2.5 px-3">Current Stage</th>
-                  <th className="py-2.5 px-3">SLA Status</th>
+                  <th className="py-2.5 px-3">Holder & SLA</th>
                   <th className="py-2.5 px-3 text-center">Dwell / Rem.</th>
                   <th className="py-2.5 px-3 text-center">Reverts</th>
                   <th className="py-2.5 px-3 text-center">Risk</th>
@@ -348,8 +374,9 @@ export default function ApplicationsListPage() {
                           Desk: {app.assigned_officer_name || 'Central Queue'}
                         </span>
                       </td>
-                      <td className="py-2.5 px-3">
-                        {getBucketBadge(app.ageing_bucket)}
+                      <td className="py-2.5 px-3 space-y-1">
+                        <div>{getHolderBadge(app.case_holder)}</div>
+                        <div>{getBucketBadge(app.ageing_bucket)}</div>
                       </td>
                       <td className="py-2.5 px-3 text-center">
                         <div className="font-semibold text-slate-800">

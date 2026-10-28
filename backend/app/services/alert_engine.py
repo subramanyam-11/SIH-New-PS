@@ -19,6 +19,7 @@ from app.models import (
 from app.services.clock import ClockService, normalize_dt
 from app.services.email_service import EmailService
 from app.services.audit import AuditService
+from app.services.working_day_service import WorkingDayService
 
 
 class AlertEngine:
@@ -79,7 +80,10 @@ class AlertEngine:
                 # The condition has cleared! Auto-resolve
                 alert.status = AlertStatusEnum.RESOLVED
                 alert.resolved_at = now
-                alert.resolution_remarks = "Condition cleared automatically: entity is no longer in regulatory violation."
+                if alert.application and alert.application.case_holder == "WITH_INSTITUTION" and alert.alert_type in [AlertTypeEnum.NEAR_BREACH, AlertTypeEnum.OVERDUE]:
+                    alert.resolution_remarks = "clock paused: with institution"
+                else:
+                    alert.resolution_remarks = "Condition cleared automatically: entity is no longer in regulatory violation."
                 resolved_count += 1
 
                 AuditService.log(
@@ -118,11 +122,18 @@ class AlertEngine:
                 Application.status == ApplicationStatusEnum.IN_PROGRESS
             ).all()
 
+            from app.services.workflow_engine import WorkflowEngine
+
             for app in active_apps:
-                entered_at = normalize_dt(app.stage_entered_at) if app.stage_entered_at else now
-                days_in_stage = max(0.0, (now - entered_at).total_seconds() / 86400.0)
+                # If clock is paused (WITH_INSTITUTION), near-breach and overdue alerts must NOT fire
+                if app.case_holder == "WITH_INSTITUTION" and rule.code in ["RULE_SCRUTINY_NEAR_BREACH", "RULE_SCRUTINY_OVERDUE"]:
+                    continue
+
+                pendency = WorkflowEngine.get_application_pendency(db, app)
+                days_in_stage = pendency["current_stage_aicte_days"]
                 sla_days = app.current_stage.default_sla_days if app.current_stage else 7
                 days_remaining = sla_days - days_in_stage
+                day_basis_str = getattr(rule, "day_basis", "WORKING") or "WORKING"
 
                 # RULE 1: Near breach (e.g. <= 2 days remaining and > 0)
                 if rule.code == "RULE_SCRUTINY_NEAR_BREACH":
@@ -138,8 +149,10 @@ class AlertEngine:
                             "region_id": app.region_id,
                             "actual_value": f"{round(days_remaining, 1)} days remaining",
                             "threshold_value": f"<= {threshold} days remaining",
-                            "why_this_fired": f"Application {app.application_number} has {round(days_remaining, 1)} days remaining before the {sla_days}-day SLA for {app.current_stage.name} lapses.",
+                            "why_this_fired": f"Application {app.application_number} has {round(days_remaining, 1)} days remaining before the {sla_days}-day SLA for {app.current_stage.name} lapses (Evaluated on {day_basis_str} days basis; holder: {app.case_holder}).",
                             "reference_clause": rule.aph_reference_clause or "APH 2026 Chapter II Clause 2.3",
+                            "day_basis": day_basis_str,
+                            "case_holder": app.case_holder,
                             "is_sample_reference": True,
                         }
 
@@ -158,8 +171,10 @@ class AlertEngine:
                             "region_id": app.region_id,
                             "actual_value": f"{days_overdue} days overdue",
                             "threshold_value": f">= {threshold} days overdue",
-                            "why_this_fired": f"Application {app.application_number} exceeded statutory scrutiny SLA by {days_overdue} days in stage {app.current_stage.name}.",
+                            "why_this_fired": f"Application {app.application_number} exceeded statutory scrutiny SLA by {days_overdue} days in stage {app.current_stage.name} (Evaluated on {day_basis_str} days basis; holder: {app.case_holder}).",
                             "reference_clause": rule.aph_reference_clause or "APH 2026 Chapter II Clause 2.3",
+                            "day_basis": day_basis_str,
+                            "case_holder": app.case_holder,
                             "is_sample_reference": True,
                         }
 
@@ -183,8 +198,10 @@ class AlertEngine:
                                 "region_id": app.region_id,
                                 "actual_value": f"{round(days_in_stage, 1)} days in queue",
                                 "threshold_value": f">= {threshold} days without schedule",
-                                "why_this_fired": f"Application {app.application_number} has waited in the EVC queue for {round(days_in_stage, 1)} days without inspection allotment.",
+                                "why_this_fired": f"Application {app.application_number} has waited in the EVC queue for {round(days_in_stage, 1)} days without inspection allotment ({day_basis_str} days).",
                                 "reference_clause": rule.aph_reference_clause or "APH 2026 Chapter II Clause 2.6",
+                                "day_basis": day_basis_str,
+                                "case_holder": app.case_holder,
                                 "is_sample_reference": True,
                             }
 
@@ -204,6 +221,8 @@ class AlertEngine:
                             "threshold_value": f">= {threshold} reverts",
                             "why_this_fired": f"Application {app.application_number} has undergone {app.revert_count} deficiency returns, meeting supervisory intervention threshold.",
                             "reference_clause": rule.aph_reference_clause or "APH 2026 Chapter II Clause 2.5",
+                            "day_basis": "CALENDAR",
+                            "case_holder": app.case_holder,
                             "is_sample_reference": True,
                         }
 
@@ -217,6 +236,9 @@ class AlertEngine:
 
             for doc in active_docs:
                 days_until_expiry = (doc.expiry_date - now_date).days
+                region_id = doc.institution.region_id if doc.institution else None
+                is_non_working, nw_reason = WorkingDayService.is_holiday_or_weekend(db, doc.expiry_date, region_id)
+                nw_note = f" Note: Expiry date falls on a {nw_reason}; manual verification deferred to next working day." if is_non_working else ""
 
                 # RULE 4: Lease 90D Warning
                 if rule.code == "RULE_LEASE_90D":
@@ -232,8 +254,10 @@ class AlertEngine:
                             "region_id": doc.institution.region_id if doc.institution else 1,
                             "actual_value": f"{days_until_expiry} days until expiry",
                             "threshold_value": f"<= {threshold} days",
-                            "why_this_fired": f"Statutory document '{doc.title}' expires in {days_until_expiry} days on {doc.expiry_date.isoformat()}.",
+                            "why_this_fired": f"Statutory document '{doc.title}' expires in {days_until_expiry} days on {doc.expiry_date.isoformat()} (CALENDAR days basis).{nw_note}",
                             "reference_clause": rule.aph_reference_clause or "APH 2026 Chapter I Clause 1.4(e)",
+                            "day_basis": "CALENDAR",
+                            "non_working_day_note": nw_note.strip() if is_non_working else None,
                             "is_sample_reference": True,
                         }
 
@@ -251,8 +275,10 @@ class AlertEngine:
                             "region_id": doc.institution.region_id if doc.institution else 1,
                             "actual_value": f"{days_until_expiry} days until expiry (Critical)",
                             "threshold_value": f"<= {threshold} days",
-                            "why_this_fired": f"CRITICAL: Statutory document '{doc.title}' expires in {days_until_expiry} days. Renewal required immediately.",
+                            "why_this_fired": f"CRITICAL: Statutory document '{doc.title}' expires in {days_until_expiry} days on {doc.expiry_date.isoformat()} (CALENDAR days basis). Renewal required immediately.{nw_note}",
                             "reference_clause": rule.aph_reference_clause or "APH 2026 Chapter I Clause 1.4(e)",
+                            "day_basis": "CALENDAR",
+                            "non_working_day_note": nw_note.strip() if is_non_working else None,
                             "is_sample_reference": True,
                         }
 
@@ -270,8 +296,10 @@ class AlertEngine:
                             "region_id": doc.institution.region_id if doc.institution else 1,
                             "actual_value": f"Expired {days_expired} days ago ({doc.expiry_date.isoformat()})",
                             "threshold_value": "Expired (<= 0 days)",
-                            "why_this_fired": f"Statutory compliance failure: Document '{doc.title}' expired on {doc.expiry_date.isoformat()} and has not been renewed.",
+                            "why_this_fired": f"Statutory compliance failure: Document '{doc.title}' expired on {doc.expiry_date.isoformat()} and has not been renewed (CALENDAR days basis).{nw_note}",
                             "reference_clause": rule.aph_reference_clause or "APH 2026 Chapter I Clause 1.4(g)",
+                            "day_basis": "CALENDAR",
+                            "non_working_day_note": nw_note.strip() if is_non_working else None,
                             "is_sample_reference": True,
                         }
 
@@ -280,11 +308,14 @@ class AlertEngine:
         # -------------------------------------------------------------------------
         elif rule.entity_type == "UNDERTAKING":
             active_undertakings = db.query(Undertaking).filter(
-                Undertaking.status.notin_([UndertakingStatusEnum.COMPLIED])
+                Undertaking.status.notin_([UndertakingStatusEnum.COMPLIED, UndertakingStatusEnum.VERIFIED])
             ).all()
 
             for ut in active_undertakings:
                 days_until_due = (ut.due_date - now_date).days
+                region_id = ut.institution.region_id if ut.institution else None
+                is_non_working, nw_reason = WorkingDayService.is_holiday_or_weekend(db, ut.due_date, region_id)
+                nw_note = f" Note: Due date falls on a {nw_reason}; manual compliance verification deferred to next working day." if is_non_working else ""
 
                 # RULE 7: Undertaking Due 15D
                 if rule.code == "RULE_UNDERTAKING_DUE_15D":
@@ -301,8 +332,10 @@ class AlertEngine:
                             "region_id": ut.institution.region_id if ut.institution else 1,
                             "actual_value": actual_str,
                             "threshold_value": f"<= {threshold} days",
-                            "why_this_fired": f"Undertaking condition '{ut.condition_title}' is due in {days_until_due} days ({ut.due_date.isoformat()}).",
+                            "why_this_fired": f"Undertaking condition '{ut.condition_title}' is due in {days_until_due} days ({ut.due_date.isoformat()}) on CALENDAR days basis.{nw_note}",
                             "reference_clause": rule.aph_reference_clause or "APH 2026 Chapter III Clause 3.2",
+                            "day_basis": "CALENDAR",
+                            "non_working_day_note": nw_note.strip() if is_non_working else None,
                             "is_sample_reference": True,
                         }
 

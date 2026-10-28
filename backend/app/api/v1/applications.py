@@ -14,7 +14,8 @@ from app.models import (
 from app.schemas import (
     ApplicationOut, ApplicationDetailOut, ApplicationCreate,
     StageTransitionRequest, ApplicationReturnRequest, ApplicationDecisionRequest,
-    StageHistoryOut, CommunicationOut, CaseSummaryOut, DeficiencyTagOut, AdvanceClockRequest
+    StageHistoryOut, CommunicationOut, CaseSummaryOut, DeficiencyTagOut, AdvanceClockRequest,
+    InstitutionResponseRequest, CloseApplicationRequest, ClockSegmentOut, CommitteeObservationOut
 )
 from app.services.clock import get_system_time, calculate_sla_status, advance_clock, reset_clock
 from app.services.workflow_engine import WorkflowEngine, get_config_val
@@ -24,14 +25,27 @@ from app.services.scheduler import run_checks_now
 router = APIRouter(prefix="", tags=["Applications"])
 
 
-def enrich_app_out(app: Application, thresholds: Optional[dict] = None) -> ApplicationOut:
-    """Enriches Application model into ApplicationOut with real-time computed SLA ageing."""
+def enrich_app_out(app: Application, db: Optional[Session] = None, thresholds: Optional[dict] = None) -> ApplicationOut:
+    """Enriches Application model into ApplicationOut with real-time computed SLA ageing and fair pendency clock."""
+    pendency_info = None
+    if db is not None:
+        try:
+            pendency_info = WorkflowEngine.get_application_pendency(db, app)
+        except Exception:
+            pass
+
     sla_info = calculate_sla_status(
         stage_entered_at=app.stage_entered_at,
         stage_due_date=app.stage_due_date,
         default_sla_days=app.current_stage.default_sla_days if app.current_stage else 7,
         thresholds=thresholds
     )
+
+    days_in_stage = pendency_info["current_stage_aicte_days"] if pendency_info else sla_info["days_in_stage"]
+    is_paused = pendency_info["is_paused"] if pendency_info else (app.case_holder == "WITH_INSTITUTION" or app.status == ApplicationStatusEnum.CLOSED)
+    total_aicte_days = pendency_info["total_aicte_days"] if pendency_info else None
+    total_institution_days = pendency_info["total_institution_days"] if pendency_info else None
+    ageing_bucket = "ON_TIME" if is_paused else sla_info["ageing_bucket"]
 
     return ApplicationOut(
         id=app.id,
@@ -56,14 +70,21 @@ def enrich_app_out(app: Application, thresholds: Optional[dict] = None) -> Appli
         assigned_officer_name=app.assigned_officer.full_name if app.assigned_officer else None,
         stage_entered_at=app.stage_entered_at,
         stage_due_date=app.stage_due_date,
-        days_in_stage=sla_info["days_in_stage"],
+        days_in_stage=days_in_stage,
         days_remaining=sla_info["days_remaining"],
-        ageing_bucket=sla_info["ageing_bucket"],
+        ageing_bucket=ageing_bucket,
         revert_count=app.revert_count,
         escalation_required=app.escalation_required,
         escalation_reason=app.escalation_reason,
         delay_risk_score=app.delay_risk_score,
-        approval_letter_ref=app.approval_letter_ref
+        approval_letter_ref=app.approval_letter_ref,
+        case_holder=app.case_holder,
+        closed_at=app.closed_at,
+        closure_reason=app.closure_reason,
+        closure_remarks=app.closure_remarks,
+        is_paused=is_paused,
+        total_aicte_days=total_aicte_days,
+        total_institution_days=total_institution_days
     )
 
 
@@ -78,6 +99,7 @@ def list_applications(
     institution_id: Optional[int] = Query(None),
     officer_id: Optional[int] = Query(None),
     status_filter: Optional[str] = Query(None, alias="status"),
+    case_holder: Optional[str] = Query(None),
     ageing_bucket: Optional[str] = Query(None),
     stage_path_id: Optional[int] = Query(None),
     search: Optional[str] = Query(None),
@@ -101,6 +123,12 @@ def list_applications(
     # 1. Apply RBAC Scoping
     if scope.is_institution:
         query = query.filter(Application.institution_id == scope.institution_id)
+    elif scope.is_committee:
+        from app.models import CommitteeAssignment
+        assigned_app_ids = db.query(CommitteeAssignment.application_id).filter(
+            CommitteeAssignment.user_id == current_user.id
+        ).subquery()
+        query = query.filter(Application.id.in_(assigned_app_ids))
     elif scope.is_regional and scope.region_id:
         query = query.filter(Application.region_id == scope.region_id)
 
@@ -117,6 +145,8 @@ def list_applications(
         query = query.filter(Application.assigned_officer_id == officer_id)
     if status_filter:
         query = query.filter(Application.status == status_filter.upper())
+    if case_holder:
+        query = query.filter(Application.case_holder == case_holder.upper())
     if stage_path_id:
         query = query.filter(Application.stage_path_id == stage_path_id)
     if search:
@@ -142,7 +172,7 @@ def list_applications(
 
     # Thresholds for SLA computation
     thresholds = get_config_val(db, "alert_thresholds", {})
-    enriched = [enrich_app_out(app, thresholds) for app in records]
+    enriched = [enrich_app_out(app, db=db, thresholds=thresholds) for app in records]
 
     # Post-filter on ageing_bucket if requested
     if ageing_bucket:
@@ -187,7 +217,7 @@ def get_application_detail(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied. Application belongs to another regional office.")
 
     thresholds = get_config_val(db, "alert_thresholds", {})
-    base = enrich_app_out(app, thresholds)
+    base = enrich_app_out(app, db=db, thresholds=thresholds)
 
     comms = [
         CommunicationOut(
@@ -216,6 +246,33 @@ def get_application_detail(
             last_generated_at=app.case_summary.last_generated_at
         )
 
+    clock_segs = [
+        ClockSegmentOut(
+            id=cs.id,
+            application_id=cs.application_id,
+            stage_id=cs.stage_id,
+            stage_name=cs.stage.name if cs.stage else None,
+            holder=cs.holder,
+            started_at=cs.started_at,
+            ended_at=cs.ended_at,
+            duration_hours=cs.duration_hours,
+            reason=cs.reason
+        ) for cs in (app.clock_segments or [])
+    ]
+
+    comm_obs = [
+        CommitteeObservationOut(
+            id=co.id,
+            application_id=co.application_id,
+            committee_type=co.committee_type,
+            user_id=co.user_id,
+            member_name=co.member_name,
+            observation_text=co.observation_text,
+            recommendation=co.recommendation,
+            created_at=co.created_at
+        ) for co in (app.committee_observations or [])
+    ]
+
     return ApplicationDetailOut(
         **base.model_dump(),
         institution=app.institution,
@@ -224,7 +281,9 @@ def get_application_detail(
         current_stage=app.current_stage,
         approval_letter_data=app.approval_letter_data,
         communications=comms,
-        case_summary=case_summary
+        case_summary=case_summary,
+        clock_segments=clock_segs,
+        committee_observations=comm_obs
     )
 
 
@@ -361,6 +420,85 @@ def record_decision(
         remarks=payload.remarks
     )
     return get_application_detail(id=app.id, db=db, current_user=current_user, scope=scope)
+
+
+@router.post("/applications/{id}/institution-response", response_model=ApplicationDetailOut)
+def submit_institution_response(
+    id: int,
+    payload: InstitutionResponseRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    scope: UserScope = Depends(get_user_scope)
+):
+    """
+    Applicant institution submits clarification/response.
+    Moves holder from WITH_INSTITUTION to WITH_AICTE and starts fresh stage SLA.
+    """
+    app = WorkflowEngine.institution_response(
+        db=db,
+        application_id=id,
+        actor=current_user,
+        remarks=payload.remarks,
+        file_id=payload.file_id
+    )
+    return get_application_detail(id=app.id, db=db, current_user=current_user, scope=scope)
+
+
+@router.post("/applications/{id}/close", response_model=ApplicationDetailOut)
+def close_application_case(
+    id: int,
+    payload: CloseApplicationRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    scope: UserScope = Depends(get_user_scope)
+):
+    """
+    Authorized human action to close an application case with a mandatory closure reason.
+    Blocks closure if any condition/undertaking on the application is still open.
+    Auto-resolves open alerts and renders the case read-only.
+    """
+    app = WorkflowEngine.close_application(
+        db=db,
+        application_id=id,
+        actor=current_user,
+        closure_reason=payload.closure_reason,
+        closure_remarks=payload.closure_remarks
+    )
+    return get_application_detail(id=app.id, db=db, current_user=current_user, scope=scope)
+
+
+@router.get("/applications/{id}/clock-segments", response_model=List[ClockSegmentOut])
+def get_clock_segments(
+    id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    scope: UserScope = Depends(get_user_scope)
+):
+    """Returns the immutable record of all clock segments for this application."""
+    app = db.query(Application).filter(Application.id == id).first()
+    if not app:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Application not found")
+    if scope.is_institution and app.institution_id != scope.institution_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+
+    from app.models import ClockSegment
+    segments = db.query(ClockSegment).options(
+        joinedload(ClockSegment.stage)
+    ).filter(ClockSegment.application_id == id).order_by(ClockSegment.started_at.asc()).all()
+
+    return [
+        ClockSegmentOut(
+            id=s.id,
+            application_id=s.application_id,
+            stage_id=s.stage_id,
+            stage_name=s.stage.name if s.stage else None,
+            holder=s.holder,
+            started_at=s.started_at,
+            ended_at=s.ended_at,
+            duration_hours=s.duration_hours,
+            reason=s.reason
+        ) for s in segments
+    ]
 
 
 @router.get("/applications/{id}/communications", response_model=List[CommunicationOut])

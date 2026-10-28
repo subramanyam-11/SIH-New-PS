@@ -46,9 +46,21 @@ def set_test_time(dt: Optional[datetime]) -> None:
     _FIXED_TEST_TIME = normalize_dt(dt)
 
 
-def compute_stage_due_date(stage_entered_at: datetime, default_sla_days: int) -> datetime:
-    """Calculates statutory deadline given entry timestamp and SLA days."""
-    return normalize_dt(stage_entered_at) + timedelta(days=default_sla_days)
+def compute_stage_due_date(
+    stage_entered_at: datetime,
+    default_sla_days: int,
+    db: Optional[Any] = None,
+    region_id: Optional[int] = None
+) -> datetime:
+    """Calculates statutory deadline given entry timestamp and SLA days (using WorkingDayService if db is provided)."""
+    norm_entered = normalize_dt(stage_entered_at)
+    if db is not None:
+        try:
+            from app.services.working_day_service import WorkingDayService
+            return WorkingDayService.add_working_days(db, norm_entered, default_sla_days, region_id=region_id)
+        except Exception:
+            pass
+    return norm_entered + timedelta(days=default_sla_days)
 
 
 def calculate_sla_status(

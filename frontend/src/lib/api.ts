@@ -182,7 +182,24 @@ export interface ApplicationItem {
   escalation_required: boolean;
   escalation_reason?: string | null;
   approval_letter_ref?: string | null;
+  case_holder?: 'WITH_AICTE' | 'WITH_INSTITUTION' | 'CLOSED';
+  closed_at?: string | null;
+  closure_reason?: string | null;
+  closure_remarks?: string | null;
+  time_with_aicte_hours?: number;
+  time_with_institution_hours?: number;
   created_at: string;
+}
+
+export interface ClockSegment {
+  id: number;
+  application_id: number;
+  stage_id?: number | null;
+  holder: 'WITH_AICTE' | 'WITH_INSTITUTION';
+  started_at: string;
+  ended_at?: string | null;
+  duration_hours?: number | null;
+  remarks?: string | null;
 }
 
 export interface StageHistoryItem {
@@ -236,6 +253,9 @@ export interface ApplicationDetail extends ApplicationItem {
   approval_letter_data?: Record<string, any> | null;
   communications: CommunicationItem[];
   case_summary?: CaseSummaryItem | null;
+  clock_segments?: ClockSegment[];
+  total_aicte_hours?: number;
+  total_institution_hours?: number;
 }
 
 export interface DeficiencyTag {
@@ -301,6 +321,18 @@ export const applicationsApi = {
   },
   resetClock: async (): Promise<{ status: string; simulated_time: string }> => {
     const res = await apiClient.post('/demo/reset-clock');
+    return res.data;
+  },
+  respond: async (id: number, data: { remarks: string; document_url?: string; file_name?: string }): Promise<ApplicationDetail> => {
+    const res = await apiClient.post(`/applications/${id}/institution-response`, data);
+    return res.data;
+  },
+  close: async (id: number, data: { closure_reason: string; closure_remarks?: string }): Promise<ApplicationDetail> => {
+    const res = await apiClient.post(`/applications/${id}/close`, data);
+    return res.data;
+  },
+  getClockSegments: async (id: number): Promise<{ segments: ClockSegment[]; total_aicte_hours: number; total_institution_hours: number; current_holder: string }> => {
+    const res = await apiClient.get(`/applications/${id}/clock-segments`);
     return res.data;
   },
 };
@@ -529,4 +561,457 @@ export const adminApi = {
     return res.data;
   },
 };
+
+// ============================================================================
+// PHASE 5 INTERFACES & APIS: EVC, UNDERTAKINGS, DOCUMENTS, REPORTS, PORTAL
+// ============================================================================
+
+export interface UploadedFileItem {
+  id: number;
+  filename: string;
+  original_filename: string;
+  file_size: number;
+  mime_type: string;
+  created_at: string;
+  download_url: string;
+}
+
+export interface EvcExpert {
+  id: number;
+  name: string;
+  designation: string;
+  discipline: string;
+  home_institution: string;
+  city: string;
+  state: string;
+  region_id: number;
+  is_available: boolean;
+  active_visit_count: number;
+}
+
+export interface SuggestedExpert {
+  expert: EvcExpert;
+  rank_score: number;
+  has_conflict: boolean;
+  conflict_reasons: string[];
+}
+
+export interface EvcVisit {
+  id: number;
+  application_id: number;
+  application_number: string;
+  academic_year: string;
+  institution_id: number;
+  institution_name: string;
+  institution_city?: string;
+  is_new_institution: boolean;
+  region_id: number;
+  region_name: string;
+  stage_name: string;
+  status: string;
+  scheduled_date?: string | null;
+  scheduled_time?: string | null;
+  visit_completed_at?: string | null;
+  report_file_id?: number | null;
+  report_file_name?: string | null;
+  remarks?: string | null;
+  days_waiting: number;
+  panel_size: number;
+  panel: EvcExpert[];
+  created_at: string;
+}
+
+export const evcApi = {
+  listVisits: async (params?: Record<string, any>): Promise<EvcVisit[]> => {
+    const res = await apiClient.get<EvcVisit[]>('/evc/visits', { params });
+    return res.data;
+  },
+  getVisit: async (id: number): Promise<EvcVisit> => {
+    const res = await apiClient.get<EvcVisit>(`/evc/visits/${id}`);
+    return res.data;
+  },
+  listExperts: async (params?: Record<string, any>): Promise<EvcExpert[]> => {
+    const res = await apiClient.get<EvcExpert[]>('/evc/experts', { params });
+    return res.data;
+  },
+  getSuggestedExperts: async (visitId: number): Promise<SuggestedExpert[]> => {
+    const res = await apiClient.get<SuggestedExpert[]>(`/evc/visits/${visitId}/suggested-experts`);
+    return res.data;
+  },
+  assignPanel: async (visitId: number, expertIds: number[]): Promise<EvcVisit> => {
+    const res = await apiClient.post<EvcVisit>(`/evc/visits/${visitId}/assign-panel`, { expert_ids: expertIds });
+    return res.data;
+  },
+  scheduleVisit: async (visitId: number, payload: { scheduled_date: string; scheduled_time?: string; instructions?: string }): Promise<EvcVisit> => {
+    const res = await apiClient.post<EvcVisit>(`/evc/visits/${visitId}/schedule`, payload);
+    return res.data;
+  },
+  completeVisit: async (visitId: number, visitSummary?: string): Promise<EvcVisit> => {
+    const res = await apiClient.post<EvcVisit>(`/evc/visits/${visitId}/complete-visit`, { visit_summary: visitSummary });
+    return res.data;
+  },
+  uploadReport: async (visitId: number, formData: FormData): Promise<EvcVisit> => {
+    const res = await apiClient.post<EvcVisit>(`/evc/visits/${visitId}/upload-report`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return res.data;
+  },
+  closeVisit: async (visitId: number, remarks?: string): Promise<EvcVisit> => {
+    const res = await apiClient.post<EvcVisit>(`/evc/visits/${visitId}/close`, { remarks });
+    return res.data;
+  },
+};
+
+export interface UndertakingHistoryItem {
+  id: number;
+  action: string;
+  from_status?: string | null;
+  to_status: string;
+  actor_name: string;
+  actor_role: string;
+  remarks?: string | null;
+  created_at: string;
+}
+
+export interface UndertakingItem {
+  id: number;
+  application_id: number;
+  application_number: string;
+  institution_id: number;
+  institution_name: string;
+  region_id: number;
+  region_name: string;
+  title: string;
+  description: string;
+  condition_clause?: string | null;
+  due_date: string;
+  status: string;
+  rejection_count: number;
+  latest_rejection_remark?: string | null;
+  is_escalated: boolean;
+  escalation_reason?: string | null;
+  verified_at?: string | null;
+  verified_by_name?: string | null;
+  days_remaining: number;
+  is_overdue: boolean;
+  evidence_files: UploadedFileItem[];
+  history: UndertakingHistoryItem[];
+  created_at: string;
+}
+
+export const undertakingsApi = {
+  list: async (params?: Record<string, any>): Promise<UndertakingItem[]> => {
+    const res = await apiClient.get<UndertakingItem[]>('/undertakings', { params });
+    return res.data;
+  },
+  get: async (id: number): Promise<UndertakingItem> => {
+    const res = await apiClient.get<UndertakingItem>(`/undertakings/${id}`);
+    return res.data;
+  },
+  uploadEvidence: async (id: number, formData: FormData): Promise<UndertakingItem> => {
+    const res = await apiClient.post<UndertakingItem>(`/undertakings/${id}/upload-evidence`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return res.data;
+  },
+  verify: async (id: number, payload: { action: 'VERIFIED' | 'REJECTED' | 'NEEDS_MORE_EVIDENCE'; remarks: string }): Promise<UndertakingItem> => {
+    const res = await apiClient.post<UndertakingItem>(`/undertakings/${id}/verify`, payload);
+    return res.data;
+  },
+};
+
+export interface DocumentVersionItem {
+  id: number;
+  version: number;
+  status: string;
+  expiry_date: string;
+  file_id?: number | null;
+  file_name?: string | null;
+  file_size?: number | null;
+  download_url?: string | null;
+  remarks?: string | null;
+  created_at: string;
+  verified_at?: string | null;
+  verified_by_name?: string | null;
+}
+
+export interface DocumentItem {
+  id: number;
+  application_id: number;
+  application_number: string;
+  institution_id: number;
+  institution_name: string;
+  region_id: number;
+  region_name: string;
+  document_type: string;
+  title: string;
+  version: number;
+  status: string;
+  issue_date?: string | null;
+  expiry_date: string;
+  days_to_expiry: number;
+  urgency: 'EXPIRED' | 'CRITICAL' | 'EXPIRING_SOON' | 'VALID' | 'PENDING_VERIFICATION';
+  file_id?: number | null;
+  file_name?: string | null;
+  file_size?: number | null;
+  download_url?: string | null;
+  remarks?: string | null;
+  superseded_by_id?: number | null;
+  versions: DocumentVersionItem[];
+  created_at: string;
+}
+
+export const documentsApi = {
+  list: async (params?: Record<string, any>): Promise<DocumentItem[]> => {
+    const res = await apiClient.get<DocumentItem[]>('/documents', { params });
+    return res.data;
+  },
+  get: async (id: number): Promise<DocumentItem> => {
+    const res = await apiClient.get<DocumentItem>(`/documents/${id}`);
+    return res.data;
+  },
+  uploadRenewal: async (id: number, formData: FormData): Promise<DocumentItem> => {
+    const res = await apiClient.post<DocumentItem>(`/documents/${id}/upload-renewal`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return res.data;
+  },
+  verifyRenewal: async (id: number, payload: { action: 'APPROVE' | 'REJECT'; remarks: string; approved_expiry_date?: string }): Promise<DocumentItem> => {
+    const res = await apiClient.post<DocumentItem>(`/documents/${id}/verify-renewal`, payload);
+    return res.data;
+  },
+};
+
+export interface PendencyReportData {
+  total_pending: number;
+  total_overdue: number;
+  with_aicte_count: number;
+  with_institution_count: number;
+  by_stage: Array<{ stage: string; count: number; with_aicte: number; with_institution: number; avg_days: number; overdue_count: number }>;
+  by_region: Array<{ region: string; count: number; with_aicte: number; with_institution: number; avg_days: number; overdue_count: number }>;
+  by_officer: Array<{ officer: string; role: string; count: number; overdue_count: number }>;
+}
+
+export interface EvcReportData {
+  total_visits: number;
+  average_turnaround_days: number;
+  by_status: Array<{ status: string; count: number }>;
+  by_region: Array<{ region: string; count: number; completed: number }>;
+}
+
+export interface UndertakingReportData {
+  total_undertakings: number;
+  verified_count: number;
+  overdue_count: number;
+  escalated_count: number;
+  compliance_rate_pct: number;
+  by_status: Array<{ status: string; count: number }>;
+  by_region: Array<{ region: string; total: number; compliant: number; overdue: number }>;
+}
+
+export interface DocumentReportData {
+  total_documents: number;
+  valid_count: number;
+  expired_count: number;
+  expiring_soon_count: number;
+  renewal_submitted_count: number;
+  superseded_count: number;
+  by_status: Array<{ status: string; count: number }>;
+  by_type: Array<{ type: string; total: number; valid: number; expiring: number; expired: number }>;
+}
+
+export interface RegionalPerformanceData {
+  regions: Array<{
+    region_id: number;
+    region_code: string;
+    region_name: string;
+    headquarters: string;
+    total_applications: number;
+    with_aicte_count: number;
+    with_institution_count: number;
+    closed_count: number;
+    avg_days_per_stage: number;
+    sla_breach_rate_pct: number;
+    alerts_raised: number;
+    alerts_resolved: number;
+  }>;
+}
+
+export interface OverdueItem {
+  id: string;
+  type: 'APPLICATION' | 'EVC_VISIT' | 'UNDERTAKING' | 'DOCUMENT';
+  reference_number: string;
+  title: string;
+  institution_id: number;
+  institution_name: string;
+  region_id?: number | null;
+  region_name: string;
+  officer_name: string;
+  case_holder: string;
+  due_date: string;
+  days_overdue: number;
+  escalation_level: number;
+  linked_alert_id?: number | null;
+  linked_alert_severity?: string | null;
+}
+
+export interface OverdueCasesReportData {
+  summary: {
+    total_overdue: number;
+    applications_overdue: number;
+    evc_visits_overdue: number;
+    undertakings_overdue: number;
+    documents_overdue: number;
+    with_aicte_count: number;
+    with_institution_count: number;
+  };
+  items: OverdueItem[];
+}
+
+export interface InstitutionHealthDossier {
+  institution: Institution;
+  health_score: number;
+  health_rating: string;
+  stats: {
+    total_applications: number;
+    open_undertakings: number;
+    overdue_undertakings: number;
+    expired_documents: number;
+    expiring_soon_documents: number;
+    open_alerts: number;
+    critical_alerts: number;
+    complaint_free_status: boolean;
+  };
+  applications: ApplicationItem[];
+  undertakings: UndertakingItem[];
+  documents: DocumentItem[];
+  open_alerts: AlertItem[];
+}
+
+export interface CommitteeAssignment {
+  id: number;
+  application_id: number;
+  application_number: string;
+  institution_name: string;
+  category_title: string;
+  committee_type: 'EVC' | 'SAC' | 'SHC';
+  user_id: number;
+  meeting_date?: string | null;
+  venue?: string | null;
+  status: string;
+}
+
+export interface CommitteeObservation {
+  id: number;
+  application_id: number;
+  user_id: number;
+  member_name: string;
+  committee_type: string;
+  observations: string;
+  recommendation: 'RECOMMEND_APPROVAL' | 'RECOMMEND_REJECTION' | 'RECOMMEND_RE_INSPECTION' | 'NEEDS_CLARIFICATION';
+  created_at: string;
+}
+
+export const committeeApi = {
+  getMyCases: async (): Promise<CommitteeAssignment[]> => {
+    const res = await apiClient.get<CommitteeAssignment[]>('/committee/my-cases');
+    return res.data;
+  },
+  getObservations: async (applicationId: number): Promise<CommitteeObservation[]> => {
+    const res = await apiClient.get<CommitteeObservation[]>(`/committee/cases/${applicationId}/observations`);
+    return res.data;
+  },
+  addObservation: async (applicationId: number, data: { committee_type: string; observations: string; recommendation: string }): Promise<CommitteeObservation> => {
+    const res = await apiClient.post<CommitteeObservation>(`/committee/cases/${applicationId}/observations`, data);
+    return res.data;
+  },
+};
+
+export interface HolidayItem {
+  id: number;
+  holiday_date: string;
+  name: string;
+  holiday_type: string;
+  region_id?: number | null;
+  region_name?: string | null;
+  created_at: string;
+}
+
+export const holidaysApi = {
+  getHolidays: async (year?: number): Promise<HolidayItem[]> => {
+    const res = await apiClient.get<HolidayItem[]>('/holidays', { params: { year } });
+    return res.data;
+  },
+  addHoliday: async (data: { holiday_date: string; name: string; holiday_type?: string; region_id?: number }): Promise<HolidayItem> => {
+    const res = await apiClient.post<HolidayItem>('/holidays', data);
+    return res.data;
+  },
+  deleteHoliday: async (id: number): Promise<void> => {
+    await apiClient.delete(`/holidays/${id}`);
+  },
+  getWeekendConfig: async (): Promise<{ weekend_days: number[]; weekend_names: string[] }> => {
+    const res = await apiClient.get('/holidays/config/weekends');
+    return res.data;
+  },
+  updateWeekendConfig: async (weekend_days: number[]): Promise<any> => {
+    const res = await apiClient.post('/holidays/config/weekends', { weekend_days });
+    return res.data;
+  },
+};
+
+export const reportsApi = {
+  getPendency: async (regionId?: number): Promise<PendencyReportData> => {
+    const res = await apiClient.get<PendencyReportData>('/reports/pendency', { params: { region_id: regionId } });
+    return res.data;
+  },
+  getEvc: async (regionId?: number): Promise<EvcReportData> => {
+    const res = await apiClient.get<EvcReportData>('/reports/evc', { params: { region_id: regionId } });
+    return res.data;
+  },
+  getUndertakings: async (regionId?: number): Promise<UndertakingReportData> => {
+    const res = await apiClient.get<UndertakingReportData>('/reports/undertakings', { params: { region_id: regionId } });
+    return res.data;
+  },
+  getDocuments: async (regionId?: number): Promise<DocumentReportData> => {
+    const res = await apiClient.get<DocumentReportData>('/reports/documents', { params: { region_id: regionId } });
+    return res.data;
+  },
+  getRegionalPerformance: async (): Promise<RegionalPerformanceData> => {
+    const res = await apiClient.get<RegionalPerformanceData>('/reports/regional-performance');
+    return res.data;
+  },
+  getOverdue: async (params?: Record<string, any>): Promise<OverdueCasesReportData> => {
+    const res = await apiClient.get<OverdueCasesReportData>('/reports/overdue', { params });
+    return res.data;
+  },
+  getInstitutionHealth: async (institutionId: number): Promise<InstitutionHealthDossier> => {
+    const res = await apiClient.get<InstitutionHealthDossier>(`/reports/institutions/${institutionId}/health`);
+    return res.data;
+  },
+  getCsvExportUrl: (reportType: string, regionId?: number): string => {
+    const regParam = regionId ? `&region_id=${regionId}` : '';
+    return `${API_BASE_URL}/reports/export/csv?report_type=${reportType}${regParam}`;
+  },
+  getPdfExportUrl: (reportType: string, regionId?: number): string => {
+    const regParam = regionId ? `&region_id=${regionId}` : '';
+    return `${API_BASE_URL}/reports/export/pdf?report_type=${reportType}${regParam}`;
+  },
+};
+
+export const filesApi = {
+  getDownloadUrl: (fileId: number): string => {
+    return `${API_BASE_URL}/files/${fileId}/download`;
+  },
+  downloadFile: async (fileId: number, filename?: string) => {
+    const res = await apiClient.get(`/files/${fileId}/download`, { responseType: 'blob' });
+    const url = window.URL.createObjectURL(new Blob([res.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', filename || `file_${fileId}.pdf`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  },
+};
+
 

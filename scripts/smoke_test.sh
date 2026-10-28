@@ -149,6 +149,179 @@ OUTBOX_RES=$(curl -s "$BACKEND_URL/api/v1/outbox" \
   -H "Authorization: Bearer $ADMIN_TOKEN")
 echo "$NOTIFS_RES" | grep -q 'unread_count' && echo "$OUTBOX_RES" | grep -q 'recipient_email' && echo "PASSED" || (echo "FAILED" && exit 1)
 
+# === PHASE 5 SMOKE CHECKS (EVC, UNDERTAKINGS, DOCUMENTS, REPORTS, SCOPING) ===
+echo -n "13. EVC Panel Assignment & Scheduling Lifecycle ... "
+# Fetch EVC visits to find one in PENDING_ASSIGNMENT
+EVC_LIST=$(curl -s "$BACKEND_URL/api/v1/evc/visits?status=PENDING_ASSIGNMENT" -H "Authorization: Bearer $RO_TOKEN")
+TARGET_EVC_ID=$(echo "$EVC_LIST" | python3 -c "import sys, json; d=json.load(sys.stdin); print(d[0]['id'] if d else '')")
+if [ -n "$TARGET_EVC_ID" ]; then
+  # Fetch suggested experts without conflict
+  EXP_RES=$(curl -s "$BACKEND_URL/api/v1/evc/visits/$TARGET_EVC_ID/suggested-experts" -H "Authorization: Bearer $RO_TOKEN")
+  EXP_IDS=$(echo "$EXP_RES" | python3 -c "import sys, json; d=json.load(sys.stdin); valid=[x['expert']['id'] for x in d if not x['has_conflict']][:3]; print(json.dumps(valid))")
+  
+  # Assign 3-member panel
+  ASSIGN_RES=$(curl -s -X POST "$BACKEND_URL/api/v1/evc/visits/$TARGET_EVC_ID/assign-panel" \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $RO_TOKEN" \
+    -d "{\"expert_ids\": $EXP_IDS}")
+  echo "$ASSIGN_RES" | grep -q '"status":"ASSIGNED"' || (echo "FAILED (Assign panel: $ASSIGN_RES)" && exit 1)
+
+  # Schedule visit
+  SCHED_RES=$(curl -s -X POST "$BACKEND_URL/api/v1/evc/visits/$TARGET_EVC_ID/schedule" \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $RO_TOKEN" \
+    -d '{"scheduled_date": "2026-11-15", "scheduled_time": "10:00", "instructions": "Smoke test inspection"}')
+  echo "$SCHED_RES" | grep -q '"status":"SCHEDULED"' && echo "PASSED (EVC #$TARGET_EVC_ID Scheduled with 3 Experts)" || (echo "FAILED: $SCHED_RES" && exit 1)
+else
+  echo "PASSED (No pending EVC visits in queue)"
+fi
+
+echo -n "14. Undertaking Evidence Submission & Officer Verification ... "
+# Get an undertaking belonging to Institution 1
+UT_LIST=$(curl -s "$BACKEND_URL/api/v1/undertakings?institution_id=1" -H "Authorization: Bearer $INST_TOKEN")
+TARGET_UT_ID=$(echo "$UT_LIST" | python3 -c "import sys, json; d=json.load(sys.stdin); print(d[0]['id'] if d else '')")
+if [ -n "$TARGET_UT_ID" ]; then
+  # Upload synthetic evidence
+  TMP_EVD="/tmp/smoke_evidence.pdf"
+  echo "%PDF-1.4 synthetic undertaking proof" > "$TMP_EVD"
+  UPLOAD_EVD_RES=$(curl -s -X POST "$BACKEND_URL/api/v1/undertakings/$TARGET_UT_ID/upload-evidence" \
+    -H "Authorization: Bearer $INST_TOKEN" \
+    -F "file=@$TMP_EVD;type=application/pdf" \
+    -F "remarks=Smoke test compliance document")
+  rm -f "$TMP_EVD"
+  echo "$UPLOAD_EVD_RES" | grep -q '"status":"SUBMITTED"' || (echo "FAILED (Evidence upload: $UPLOAD_EVD_RES)" && exit 1)
+
+  # Scrutiny Officer verifies undertaking
+  VERIFY_UT_RES=$(curl -s -X POST "$BACKEND_URL/api/v1/undertakings/$TARGET_UT_ID/verify" \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $SCRUTINY_TOKEN" \
+    -d '{"action": "VERIFIED", "remarks": "Compliance evidence verified and approved by scrutiny officer."}')
+  echo "$VERIFY_UT_RES" | grep -q '"status":"VERIFIED"' && echo "PASSED (Undertaking #$TARGET_UT_ID Verified)" || (echo "FAILED: $VERIFY_UT_RES" && exit 1)
+else
+  echo "PASSED (No undertakings for institution 1)"
+fi
+
+echo -n "15. Document Renewal Versioning & Officer Verification ... "
+# Get a document for Institution 1
+DOC_LIST=$(curl -s "$BACKEND_URL/api/v1/documents?institution_id=1" -H "Authorization: Bearer $INST_TOKEN")
+TARGET_DOC_ID=$(echo "$DOC_LIST" | python3 -c "import sys, json; d=json.load(sys.stdin); print(d[0]['id'] if d else '')")
+if [ -n "$TARGET_DOC_ID" ]; then
+  # Upload renewal document
+  TMP_DOC="/tmp/smoke_renewal.pdf"
+  echo "%PDF-1.4 synthetic renewal certificate" > "$TMP_DOC"
+  RENEW_RES=$(curl -s -X POST "$BACKEND_URL/api/v1/documents/$TARGET_DOC_ID/upload-renewal" \
+    -H "Authorization: Bearer $INST_TOKEN" \
+    -F "file=@$TMP_DOC;type=application/pdf" \
+    -F "new_expiry_date=2028-12-31" \
+    -F "remarks=Smoke test lease extension")
+  rm -f "$TMP_DOC"
+  NEW_DOC_ID=$(echo "$RENEW_RES" | python3 -c "import sys, json; print(json.load(sys.stdin).get('id', ''))")
+  echo "$RENEW_RES" | grep -q '"status":"RENEWAL_SUBMITTED"' || (echo "FAILED (Renewal upload: $RENEW_RES)" && exit 1)
+
+  # Officer verifies renewal
+  VERIFY_DOC_RES=$(curl -s -X POST "$BACKEND_URL/api/v1/documents/$NEW_DOC_ID/verify-renewal" \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $RO_TOKEN" \
+    -d '{"action": "APPROVE", "remarks": "Certified renewal endorsed by Regional Head.", "approved_expiry_date": "2028-12-31"}')
+  echo "$VERIFY_DOC_RES" | grep -q '"status":"VALID"' && echo "PASSED (Doc #$NEW_DOC_ID Renewed & Verified)" || (echo "FAILED: $VERIFY_DOC_RES" && exit 1)
+else
+  echo "PASSED (No documents found)"
+fi
+
+echo -n "16. Reports DB Calculations & CSV / PDF Exports ... "
+CSV_RES=$(curl -s -D - -o /dev/null "$BACKEND_URL/api/v1/reports/export/csv?report_type=pendency" -H "Authorization: Bearer $ADMIN_TOKEN")
+PDF_RES=$(curl -s -D - -o /dev/null "$BACKEND_URL/api/v1/reports/export/pdf?report_type=regional_performance" -H "Authorization: Bearer $ADMIN_TOKEN")
+HEALTH_RES=$(curl -s "$BACKEND_URL/api/v1/reports/institutions/1/health" -H "Authorization: Bearer $ADMIN_TOKEN")
+echo "$CSV_RES" | grep -q 'text/csv' && echo "$PDF_RES" | grep -q 'application/pdf' && echo "$HEALTH_RES" | grep -q 'health_score' && echo "PASSED (CSV, PDF & Health Dossier Active)" || (echo "FAILED" && exit 1)
+
+echo -n "17. Strict Scoping Guard (Institution Access to Foreign Records) ... "
+FOREIGN_TRY=$(curl -s -w "%{http_code}" -o /dev/null "$BACKEND_URL/api/v1/undertakings/999" -H "Authorization: Bearer $INST_TOKEN")
+if [ "$FOREIGN_TRY" = "403" ] || [ "$FOREIGN_TRY" = "404" ]; then
+  echo "PASSED (Blocked with HTTP $FOREIGN_TRY)"
+else
+  echo "FAILED (Foreign record returned HTTP $FOREIGN_TRY)" && exit 1
+fi
+
+echo -n "18. Phase 6 Fair Pendency Clock (Return -> Pause Clock) ... "
+# Submit test application for Phase 6 clock checks
+P6_APP_RES=$(curl -s -X POST "$BACKEND_URL/api/v1/applications" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -d '{"institution_id": 1, "category_id": 1}')
+P6_APP_ID=$(echo "$P6_APP_RES" | python3 -c "import sys, json; print(json.load(sys.stdin).get('id', ''))")
+
+# Return application for deficiency
+P6_REV_RES=$(curl -s -X POST "$BACKEND_URL/api/v1/applications/$P6_APP_ID/return" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -d '{"deficiency_tags": ["DEF_FIRE_NOC"], "reason": "Smoke check: NOC verification required."}')
+P6_HOLDER=$(echo "$P6_REV_RES" | python3 -c "import sys, json; print(json.load(sys.stdin).get('case_holder', ''))")
+if [ "$P6_HOLDER" = "WITH_INSTITUTION" ]; then
+  echo "PASSED (Holder: WITH_INSTITUTION, Clock Paused)"
+else
+  echo "FAILED (Expected WITH_INSTITUTION, got '$P6_HOLDER')" && exit 1
+fi
+
+echo -n "19. Phase 6 Institution Response (Resume Clock -> WITH_AICTE) ... "
+P6_RESP_RES=$(curl -s -X POST "$BACKEND_URL/api/v1/applications/$P6_APP_ID/institution-response" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -d '{"remarks": "Submitted valid NOC document endorsement from municipality."}')
+P6_NEW_HOLDER=$(echo "$P6_RESP_RES" | python3 -c "import sys, json; print(json.load(sys.stdin).get('case_holder', ''))")
+if [ "$P6_NEW_HOLDER" = "WITH_AICTE" ]; then
+  echo "PASSED (Holder: WITH_AICTE, Clock Resumed)"
+else
+  echo "FAILED (Expected WITH_AICTE, got '$P6_NEW_HOLDER')" && exit 1
+fi
+
+echo -n "20. Phase 6 Statutory Case Closure & Read-Only Enforcement ... "
+P6_CLOSE_RES=$(curl -s -X POST "$BACKEND_URL/api/v1/applications/$P6_APP_ID/close" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -d '{"closure_reason": "ALL_CONDITIONS_MET", "closure_remarks": "Smoke check: Successfully completed and archived."}')
+P6_CLOSE_STATUS=$(echo "$P6_CLOSE_RES" | python3 -c "import sys, json; print(json.load(sys.stdin).get('status', ''))")
+
+# Verify case is read-only
+P6_MUT_TRY=$(curl -s -w "%{http_code}" -o /dev/null -X POST "$BACKEND_URL/api/v1/applications/$P6_APP_ID/complete-stage" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -d '{"remarks": "Illegal mutation attempt on closed application"}')
+
+if [ "$P6_CLOSE_STATUS" = "CLOSED" ] && [ "$P6_MUT_TRY" = "400" ]; then
+  echo "PASSED (Closed with ALL_CONDITIONS_MET, Blocked Mutation: HTTP $P6_MUT_TRY)"
+else
+  echo "FAILED (Status: $P6_CLOSE_STATUS, Mutation Code: $P6_MUT_TRY)" && exit 1
+fi
+
+echo -n "21. Phase 6 Overdue Cases Report & Export Endpoints ... "
+OD_REP=$(curl -s "$BACKEND_URL/api/v1/reports/overdue" -H "Authorization: Bearer $ADMIN_TOKEN")
+OD_CSV=$(curl -s -D - -o /dev/null "$BACKEND_URL/api/v1/reports/export/csv?report_type=overdue" -H "Authorization: Bearer $ADMIN_TOKEN")
+OD_PDF=$(curl -s -D - -o /dev/null "$BACKEND_URL/api/v1/reports/export/pdf?report_type=overdue" -H "Authorization: Bearer $ADMIN_TOKEN")
+if echo "$OD_REP" | grep -q '"total_overdue"' && echo "$OD_CSV" | grep -q 'text/csv' && echo "$OD_PDF" | grep -q 'application/pdf'; then
+  echo "PASSED (Overdue Report Data & CSV/PDF Exports Verified)"
+else
+  echo "FAILED (Overdue report output invalid)" && exit 1
+fi
+
+echo -n "22. Phase 6 New Roles (Bureau Officer & Committee Member) ... "
+BO_LOGIN=$(curl -s -X POST "$BACKEND_URL/api/v1/auth/demo-login" \
+  -H "Content-Type: application/json" \
+  -d '{"role": "BUREAU_OFFICER", "email": "bureau.officer@aicte.gov.in"}')
+BO_TOKEN=$(echo "$BO_LOGIN" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+
+CM_LOGIN=$(curl -s -X POST "$BACKEND_URL/api/v1/auth/demo-login" \
+  -H "Content-Type: application/json" \
+  -d '{"role": "COMMITTEE_MEMBER", "email": "evc.member@aicte.gov.in"}')
+CM_TOKEN=$(echo "$CM_LOGIN" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+
+CM_CASES=$(curl -s "$BACKEND_URL/api/v1/committee/my-cases" -H "Authorization: Bearer $CM_TOKEN")
+
+if [ -n "$BO_TOKEN" ] && [ -n "$CM_TOKEN" ] && echo "$CM_CASES" | grep -q 'application_id'; then
+  echo "PASSED (New Personas Authenticated & Committee Scope Active)"
+else
+  echo "FAILED (New role login or scope failed)" && exit 1
+fi
+
 # Reset clock
 curl -s -X POST "$BACKEND_URL/api/v1/demo/reset-clock" -H "Authorization: Bearer $ADMIN_TOKEN" > /dev/null
 
@@ -158,4 +331,5 @@ if [ $SERVER_STARTED_BY_SCRIPT -eq 1 ]; then
   kill $UVICORN_PID || true
 fi
 
-echo "=== ALL PHASE 1-4 SMOKE CHECKS PASSED SUCCESSFULLY ==="
+echo "=== ALL PHASE 1-6 SMOKE CHECKS PASSED SUCCESSFULLY ==="
+

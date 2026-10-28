@@ -18,6 +18,8 @@ class UserRoleEnum(str, enum.Enum):
     REGIONAL_HEAD = "REGIONAL_HEAD"
     COMPETENT_AUTHORITY = "COMPETENT_AUTHORITY"
     INSTITUTION_USER = "INSTITUTION_USER"
+    BUREAU_OFFICER = "BUREAU_OFFICER"
+    COMMITTEE_MEMBER = "COMMITTEE_MEMBER"
 
 
 class ApplicationStatusEnum(str, enum.Enum):
@@ -26,6 +28,38 @@ class ApplicationStatusEnum(str, enum.Enum):
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
     WITHDRAWN = "WITHDRAWN"
+    CLOSED = "CLOSED"
+
+
+class CaseHolderEnum(str, enum.Enum):
+    WITH_AICTE = "WITH_AICTE"
+    WITH_INSTITUTION = "WITH_INSTITUTION"
+
+
+class CommitteeTypeEnum(str, enum.Enum):
+    EVC = "EVC"
+    SAC = "SAC"
+    SHC = "SHC"
+
+
+class CommitteeRecommendationEnum(str, enum.Enum):
+    RECOMMEND_APPROVAL = "RECOMMEND_APPROVAL"
+    RECOMMEND_REJECTION = "RECOMMEND_REJECTION"
+    RECOMMEND_RE_INSPECTION = "RECOMMEND_RE_INSPECTION"
+    NEEDS_CLARIFICATION = "NEEDS_CLARIFICATION"
+
+
+class DayBasisEnum(str, enum.Enum):
+    WORKING = "WORKING"
+    CALENDAR = "CALENDAR"
+
+
+class ClosureReasonEnum(str, enum.Enum):
+    ALL_CONDITIONS_MET = "ALL_CONDITIONS_MET"
+    REJECTED_FINAL = "REJECTED_FINAL"
+    WITHDRAWN_BY_INSTITUTION = "WITHDRAWN_BY_INSTITUTION"
+    SUPERSEDED = "SUPERSEDED"
+    OTHER = "OTHER"
 
 
 class StageStatusEnum(str, enum.Enum):
@@ -38,17 +72,28 @@ class StageStatusEnum(str, enum.Enum):
 
 class EvcStatusEnum(str, enum.Enum):
     PENDING_SCHEDULE = "PENDING_SCHEDULE"
+    PENDING_ASSIGNMENT = "PENDING_ASSIGNMENT"
+    ASSIGNED = "ASSIGNED"
     SCHEDULED = "SCHEDULED"
     VISIT_COMPLETED = "VISIT_COMPLETED"
+    VISIT_DONE = "VISIT_DONE"
     REPORT_SUBMITTED = "REPORT_SUBMITTED"
+    REPORT_RECEIVED = "REPORT_RECEIVED"
+    CLOSED = "CLOSED"
     CANCELLED = "CANCELLED"
 
 
 class UndertakingStatusEnum(str, enum.Enum):
     PENDING_SUBMISSION = "PENDING_SUBMISSION"
+    PENDING = "PENDING"
+    SUBMITTED = "SUBMITTED"
     UNDER_VERIFICATION = "UNDER_VERIFICATION"
+    VERIFIED = "VERIFIED"
+    REJECTED = "REJECTED"
+    NEEDS_MORE_EVIDENCE = "NEEDS_MORE_EVIDENCE"
     COMPLIED = "COMPLIED"
     OVERDUE = "OVERDUE"
+    ESCALATED = "ESCALATED"
     DEFAULTED = "DEFAULTED"
 
 
@@ -63,7 +108,10 @@ class DocumentTypeEnum(str, enum.Enum):
 
 class DocumentStatusEnum(str, enum.Enum):
     ACTIVE = "ACTIVE"
+    VALID = "VALID"
+    EXPIRING = "EXPIRING"
     RENEWAL_SUBMITTED = "RENEWAL_SUBMITTED"
+    RENEWED = "RENEWED"
     EXPIRING_SOON = "EXPIRING_SOON"
     EXPIRED = "EXPIRED"
     SUPERSEDED = "SUPERSEDED"
@@ -236,6 +284,12 @@ class Application(Base):
     escalation_required = Column(Boolean, default=False)
     escalation_reason = Column(Text, nullable=True)
 
+    # Phase 6 (v2 Alignment) additions:
+    case_holder = Column(String(30), default="WITH_AICTE", nullable=False, index=True)
+    closed_at = Column(DateTime(timezone=True), nullable=True)
+    closure_reason = Column(String(50), nullable=True)
+    closure_remarks = Column(Text, nullable=True)
+
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -248,6 +302,9 @@ class Application(Base):
     stage_history = relationship("StageHistory", back_populates="application", cascade="all, delete-orphan", order_by="StageHistory.entered_at")
     communications = relationship("ApplicationCommunication", back_populates="application", cascade="all, delete-orphan", order_by="ApplicationCommunication.created_at.desc()")
     case_summary = relationship("CaseSummary", back_populates="application", uselist=False, cascade="all, delete-orphan")
+    clock_segments = relationship("ClockSegment", back_populates="application", cascade="all, delete-orphan", order_by="ClockSegment.started_at")
+    committee_assignments = relationship("CommitteeAssignment", back_populates="application", cascade="all, delete-orphan")
+    committee_observations = relationship("CommitteeObservation", back_populates="application", cascade="all, delete-orphan", order_by="CommitteeObservation.created_at")
 
 
 class StageHistory(Base):
@@ -291,24 +348,72 @@ class ApplicationCommunication(Base):
     sender = relationship("User", foreign_keys=[sent_by])
 
 
+class UploadedFile(Base):
+    __tablename__ = "uploaded_files"
+
+    id = Column(Integer, primary_key=True, index=True)
+    original_filename = Column(String(255), nullable=False)
+    stored_filename = Column(String(255), nullable=False)
+    file_path = Column(String(500), nullable=False)
+    file_size_bytes = Column(Integer, nullable=False)
+    mime_type = Column(String(100), nullable=False)
+    checksum_sha256 = Column(String(64), nullable=False)
+    entity_type = Column(String(50), nullable=True) # 'UNDERTAKING_EVIDENCE', 'DOCUMENT_RENEWAL', 'EVC_REPORT'
+    entity_id = Column(Integer, nullable=True)
+    uploaded_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    uploader = relationship("User", foreign_keys=[uploaded_by])
+
+
+class EvcExpert(Base):
+    __tablename__ = "evc_experts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(150), nullable=False)
+    designation = Column(String(150), nullable=False)
+    discipline = Column(String(100), nullable=False)
+    region_id = Column(Integer, ForeignKey("regions.id"), nullable=False)
+    home_institution = Column(String(200), nullable=False)
+    city = Column(String(100), nullable=False)
+    is_available = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    region = relationship("Region")
+
+
 class EvcVisit(Base):
     __tablename__ = "evc_visits"
 
     id = Column(Integer, primary_key=True, index=True)
     application_id = Column(Integer, ForeignKey("applications.id"), nullable=False)
-    status = Column(SQLEnum(EvcStatusEnum, name="evc_status_enum"), default=EvcStatusEnum.PENDING_SCHEDULE, nullable=False)
+    status = Column(SQLEnum(EvcStatusEnum, name="evc_status_enum"), default=EvcStatusEnum.PENDING_ASSIGNMENT, nullable=False)
     coordinator_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    
     scheduled_date = Column(Date, nullable=True)
+    scheduled_time = Column(String(50), nullable=True)
     visit_type = Column(String(50), default="PHYSICAL")
     committee_chair = Column(String(150), nullable=True)
     committee_experts = Column(JSONB, default=list)
+    assigned_experts = Column(JSONB, default=list) # 3 expert objects with conflict check details
+    
     visit_completed_at = Column(DateTime(timezone=True), nullable=True)
+    visit_summary = Column(Text, nullable=True)
     report_uploaded_at = Column(DateTime(timezone=True), nullable=True)
     report_file_url = Column(String(255), nullable=True)
+    report_file_id = Column(Integer, ForeignKey("uploaded_files.id", ondelete="SET NULL"), nullable=True)
     outcome_recommendation = Column(String(50), nullable=True)
     remarks = Column(Text, nullable=True)
+    closed_at = Column(DateTime(timezone=True), nullable=True)
+    closed_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    application = relationship("Application")
+    coordinator = relationship("User", foreign_keys=[coordinator_id])
+    report_file = relationship("UploadedFile", foreign_keys=[report_file_id])
+    closer = relationship("User", foreign_keys=[closed_by])
 
 
 class Undertaking(Base):
@@ -320,7 +425,12 @@ class Undertaking(Base):
     condition_title = Column(String(255), nullable=False)
     description = Column(Text, nullable=False)
     due_date = Column(Date, nullable=False, index=True)
-    status = Column(SQLEnum(UndertakingStatusEnum, name="undertaking_status_enum"), default=UndertakingStatusEnum.PENDING_SUBMISSION, nullable=False, index=True)
+    status = Column(SQLEnum(UndertakingStatusEnum, name="undertaking_status_enum"), default=UndertakingStatusEnum.PENDING, nullable=False, index=True)
+    
+    rejection_count = Column(Integer, default=0, nullable=False)
+    escalated_to_tier = Column(Integer, default=1, nullable=False)
+    escalation_reason = Column(Text, nullable=True)
+    
     assigned_verifier_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     verified_at = Column(DateTime(timezone=True), nullable=True)
     verification_remarks = Column(Text, nullable=True)
@@ -328,6 +438,26 @@ class Undertaking(Base):
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 
     institution = relationship("Institution", back_populates="undertakings")
+    application = relationship("Application")
+    assigned_verifier = relationship("User", foreign_keys=[assigned_verifier_id])
+    evidence_items = relationship("UndertakingEvidence", back_populates="undertaking", cascade="all, delete-orphan", order_by="UndertakingEvidence.submitted_at.desc()")
+    history = relationship("UndertakingHistory", back_populates="undertaking", cascade="all, delete-orphan", order_by="UndertakingHistory.created_at.desc()")
+
+
+class UndertakingHistory(Base):
+    __tablename__ = "undertaking_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    undertaking_id = Column(Integer, ForeignKey("undertakings.id", ondelete="CASCADE"), nullable=False, index=True)
+    from_status = Column(String(50), nullable=True)
+    to_status = Column(String(50), nullable=False)
+    action_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    action_role = Column(String(50), nullable=True)
+    remarks = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    undertaking = relationship("Undertaking", back_populates="history")
+    actor = relationship("User", foreign_keys=[action_by])
 
 
 class UndertakingEvidence(Base):
@@ -338,8 +468,13 @@ class UndertakingEvidence(Base):
     submitted_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     file_name = Column(String(255), nullable=False)
     file_url = Column(String(255), nullable=False)
+    file_id = Column(Integer, ForeignKey("uploaded_files.id", ondelete="SET NULL"), nullable=True)
     comments = Column(Text, nullable=True)
     submitted_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    undertaking = relationship("Undertaking", back_populates="evidence_items")
+    submitter = relationship("User", foreign_keys=[submitted_by])
+    file_artifact = relationship("UploadedFile", foreign_keys=[file_id])
 
 
 class Document(Base):
@@ -355,6 +490,13 @@ class Document(Base):
     issue_date = Column(Date, nullable=False)
     expiry_date = Column(Date, nullable=False, index=True)
     status = Column(SQLEnum(DocumentStatusEnum, name="document_status_enum"), default=DocumentStatusEnum.ACTIVE, nullable=False, index=True)
+    
+    version_number = Column(Integer, default=1, nullable=False)
+    previous_version_id = Column(Integer, ForeignKey("documents.id", ondelete="SET NULL"), nullable=True)
+    renewal_file_id = Column(Integer, ForeignKey("uploaded_files.id", ondelete="SET NULL"), nullable=True)
+    verified_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    verification_remarks = Column(Text, nullable=True)
+    
     file_url = Column(String(255), nullable=True)
     renewal_application_ref = Column(String(100), nullable=True)
     renewal_notes = Column(Text, nullable=True)
@@ -363,6 +505,9 @@ class Document(Base):
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 
     institution = relationship("Institution", back_populates="documents")
+    application = relationship("Application")
+    renewal_file = relationship("UploadedFile", foreign_keys=[renewal_file_id])
+    verifier = relationship("User", foreign_keys=[verified_by])
 
 
 class AlertRule(Base):
@@ -377,6 +522,7 @@ class AlertRule(Base):
     severity = Column(SQLEnum(AlertSeverityEnum, name="alert_severity_enum"), nullable=False)
     aph_reference_clause = Column(String(100), nullable=True)
     template_message = Column(Text, nullable=False)
+    day_basis = Column(String(20), default="WORKING", nullable=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
 
@@ -542,7 +688,7 @@ class AuditLog(Base):
     id = Column(Integer, primary_key=True, index=True)
     table_name = Column(String(100), nullable=False)
     record_id = Column(Integer, nullable=False)
-    action = Column(String(20), nullable=False)
+    action = Column(String(100), nullable=False)
     old_values = Column(JSONB, nullable=True)
     new_values = Column(JSONB, nullable=True)
     actor_id = Column(Integer, ForeignKey("users.id"), nullable=True)
@@ -559,3 +705,64 @@ class SystemConfig(Base):
     description = Column(Text, nullable=True)
     updated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class ClockSegment(Base):
+    __tablename__ = "clock_segments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    application_id = Column(Integer, ForeignKey("applications.id", ondelete="CASCADE"), nullable=False, index=True)
+    stage_id = Column(Integer, ForeignKey("stages.id"), nullable=False)
+    holder = Column(String(30), nullable=False, index=True)  # WITH_AICTE, WITH_INSTITUTION
+    started_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False, index=True)
+    ended_at = Column(DateTime(timezone=True), nullable=True)
+    duration_hours = Column(Float, nullable=True)
+    reason = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    application = relationship("Application", back_populates="clock_segments")
+    stage = relationship("Stage")
+
+
+class Holiday(Base):
+    __tablename__ = "holidays"
+
+    id = Column(Integer, primary_key=True, index=True)
+    date = Column(Date, nullable=False, index=True)
+    name = Column(String(150), nullable=False)
+    region_id = Column(Integer, ForeignKey("regions.id", ondelete="SET NULL"), nullable=True, index=True)
+    holiday_type = Column(String(50), default="NATIONAL", nullable=False)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    region = relationship("Region")
+
+
+class CommitteeAssignment(Base):
+    __tablename__ = "committee_assignments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    application_id = Column(Integer, ForeignKey("applications.id", ondelete="CASCADE"), nullable=False, index=True)
+    committee_type = Column(String(20), nullable=False, index=True) # EVC, SAC, SHC
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    assigned_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    status = Column(String(20), default="ASSIGNED", nullable=False)
+    notes = Column(Text, nullable=True)
+
+    application = relationship("Application", back_populates="committee_assignments")
+    user = relationship("User")
+
+
+class CommitteeObservation(Base):
+    __tablename__ = "committee_observations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    application_id = Column(Integer, ForeignKey("applications.id", ondelete="CASCADE"), nullable=False, index=True)
+    committee_type = Column(String(20), nullable=False, index=True) # EVC, SAC, SHC
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    member_name = Column(String(150), nullable=False)
+    observation_text = Column(Text, nullable=False)
+    recommendation = Column(String(50), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    application = relationship("Application", back_populates="committee_observations")
+    user = relationship("User")

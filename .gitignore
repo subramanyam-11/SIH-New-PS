@@ -38,6 +38,7 @@ yarn-error.log*
 out/
 build/
 dist/
+*.tsbuildinfo
 
 # Environment files
 .env
@@ -60,3 +61,8 @@ Thumbs.db
 
 # Docker
 postgres_data/
+
+# Uploaded Evidence and Reports
+uploads/
+backend/uploads/
+!backend/uploads/samples/

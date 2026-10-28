@@ -66,6 +66,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setScope(userScope);
       if (userScope.is_institution) {
         router.push('/portal');
+      } else if (userScope.role === 'COMMITTEE_MEMBER') {
+        router.push('/committee/my-cases');
       } else {
         router.push('/');
       }

@@ -45,6 +45,10 @@ const INSTITUTION_NAV_ITEMS: NavItem[] = [
   { name: 'Document Validity', href: '/portal/documents', icon: ShieldCheck },
 ];
 
+const COMMITTEE_NAV_ITEMS: NavItem[] = [
+  { name: 'My Committee Cases', href: '/committee/my-cases', icon: ClipboardList },
+];
+
 export function Sidebar() {
   const { scope } = useAuth();
   const pathname = usePathname();
@@ -55,10 +59,12 @@ export function Sidebar() {
   let navItems: NavItem[] = [];
   if (scope.is_institution) {
     navItems = INSTITUTION_NAV_ITEMS;
+  } else if (scope.role === 'COMMITTEE_MEMBER') {
+    navItems = COMMITTEE_NAV_ITEMS;
   } else {
     // Filter based on allowed_screens
     navItems = ALL_NAV_ITEMS.filter((item) => {
-      if (item.href === '/') return true;
+      if (item.href === '/') return scope.allowed_screens?.includes('/dashboard');
       return scope.allowed_screens?.includes(item.href);
     });
   }

@@ -10,12 +10,13 @@ import { Button } from '@/components/ui/Button';
 import { 
   applicationsApi, configApi, lookupApi,
   ApplicationDetail, StageHistoryItem, CommunicationItem, 
-  DeficiencyTag, UserScope 
+  DeficiencyTag, UserScope, ClockSegment 
 } from '@/lib/api';
+import { DecisionSupportBadge } from '@/components/ui/DecisionSupportBadge';
 import { 
   FileText, ArrowLeft, Clock, AlertTriangle, CheckCircle2, 
   Send, RotateCcw, Award, CheckCircle, XCircle, Mail, Sparkles, 
-  Building2, MapPin, User, ChevronRight, FileCheck, AlertCircle
+  Building2, MapPin, User, ChevronRight, FileCheck, AlertCircle, PauseCircle, PlayCircle
 } from 'lucide-react';
 
 export default function ApplicationDetailPage() {
@@ -27,6 +28,8 @@ export default function ApplicationDetailPage() {
   const [app, setApp] = useState<ApplicationDetail | null>(null);
   const [timeline, setTimeline] = useState<StageHistoryItem[]>([]);
   const [deficiencyTags, setDeficiencyTags] = useState<DeficiencyTag[]>([]);
+  const [clockSegments, setClockSegments] = useState<ClockSegment[]>([]);
+  const [clockTotals, setClockTotals] = useState<{ aicte_hours: number; inst_hours: number }>({ aicte_hours: 0, inst_hours: 0 });
   const [loading, setLoading] = useState<boolean>(true);
   const [actionLoading, setActionLoading] = useState<boolean>(false);
   const [actionError, setActionError] = useState<string>('');
@@ -37,6 +40,8 @@ export default function ApplicationDetailPage() {
   const [showReturnModal, setShowReturnModal] = useState<boolean>(false);
   const [showDecisionModal, setShowDecisionModal] = useState<boolean>(false);
   const [showLetterModal, setShowLetterModal] = useState<boolean>(false);
+  const [showResponseModal, setShowResponseModal] = useState<boolean>(false);
+  const [showCloseModal, setShowCloseModal] = useState<boolean>(false);
 
   // Form states
   const [advanceRemarks, setAdvanceRemarks] = useState<string>('');
@@ -44,20 +49,27 @@ export default function ApplicationDetailPage() {
   const [returnRemarks, setReturnRemarks] = useState<string>('');
   const [decisionType, setDecisionType] = useState<'APPROVE' | 'REJECT'>('APPROVE');
   const [decisionRemarks, setDecisionRemarks] = useState<string>('');
+  const [responseRemarks, setResponseRemarks] = useState<string>('');
+  const [responseDocUrl, setResponseDocUrl] = useState<string>('');
+  const [closureReason, setClosureReason] = useState<string>('ALL_CONDITIONS_MET');
+  const [closureRemarks, setClosureRemarks] = useState<string>('');
 
   const loadCase = async () => {
     try {
       setLoading(true);
-      const [scopeRes, appRes, timeRes, tagsRes] = await Promise.all([
+      const [scopeRes, appRes, timeRes, tagsRes, clockRes] = await Promise.all([
         lookupApi.getScope(),
         applicationsApi.get(appId),
         applicationsApi.getTimeline(appId),
-        configApi.getDeficiencyTags()
+        configApi.getDeficiencyTags(),
+        applicationsApi.getClockSegments(appId).catch(() => ({ segments: [], total_aicte_hours: 0, total_institution_hours: 0, current_holder: 'WITH_AICTE' }))
       ]);
       setScope(scopeRes);
       setApp(appRes);
       setTimeline(timeRes);
       setDeficiencyTags(tagsRes);
+      setClockSegments(clockRes.segments || []);
+      setClockTotals({ aicte_hours: clockRes.total_aicte_hours || 0, inst_hours: clockRes.total_institution_hours || 0 });
     } catch (err: any) {
       console.error('Failed to load application dossier:', err);
       setActionError(err.response?.data?.detail || 'Failed to load case');
@@ -113,12 +125,53 @@ export default function ApplicationDetailPage() {
     setActionError('');
     try {
       await applicationsApi.recordDecision(appId, decisionType, decisionRemarks);
-      setActionSuccess(`✓ Statutory decision recorded (${decisionType}). Official order generated.`);
+      setActionSuccess(`✓ Statutory decision recorded (${decisionType}). Sample order generated.`);
       setShowDecisionModal(false);
       setDecisionRemarks('');
       await loadCase();
     } catch (err: any) {
       setActionError(err.response?.data?.detail || 'Failed to record decision');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleInstitutionResponse = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setActionLoading(true);
+    setActionError('');
+    try {
+      await applicationsApi.respond(appId, {
+        remarks: responseRemarks.trim(),
+        document_url: responseDocUrl.trim() || undefined,
+      });
+      setActionSuccess('✓ Institution response submitted. Dossier holder moved to WITH_AICTE and re-entered re-scrutiny with fresh SLA.');
+      setShowResponseModal(false);
+      setResponseRemarks('');
+      setResponseDocUrl('');
+      await loadCase();
+    } catch (err: any) {
+      setActionError(err.response?.data?.detail || 'Failed to submit response');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCloseApplication = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setActionLoading(true);
+    setActionError('');
+    try {
+      await applicationsApi.close(appId, {
+        closure_reason: closureReason,
+        closure_remarks: closureRemarks.trim() || undefined,
+      });
+      setActionSuccess(`✓ Case formally closed under reason: ${closureReason}. Open alerts resolved.`);
+      setShowCloseModal(false);
+      setClosureRemarks('');
+      await loadCase();
+    } catch (err: any) {
+      setActionError(err.response?.data?.detail || 'Failed to close case');
     } finally {
       setActionLoading(false);
     }
@@ -158,21 +211,25 @@ export default function ApplicationDetailPage() {
   const isResponsibleOfficer = (scope?.role === app.current_stage.responsible_role) && 
     (!scope?.region_id || scope.region_id === app.region_id);
   const isApplicantInst = scope?.role === 'INSTITUTION_USER' && scope.institution_id === app.institution_id;
+  const isClosed = app.status === 'CLOSED' || app.case_holder === 'CLOSED';
 
-  const canAdvance = app.status === 'IN_PROGRESS' && (
+  const canAdvance = !isClosed && app.status === 'IN_PROGRESS' && (
     (app.current_stage.code === 'RE_SCRUTINY' && (isApplicantInst || isRegionalHead || scope?.role === 'ADMIN')) ||
     (app.current_stage.code !== 'RE_SCRUTINY' && (isResponsibleOfficer || isRegionalHead || isAuthority))
   );
 
-  const canReturn = app.status === 'IN_PROGRESS' && 
+  const canReturn = !isClosed && app.status === 'IN_PROGRESS' && 
     (scope?.role === 'SCRUTINY_OFFICER' || isRegionalHead || scope?.role === 'ADMIN') &&
     (app.current_stage.code === 'SCRUTINY' || app.current_stage.code === 'SUBMITTED');
 
-  const canDecide = app.status === 'IN_PROGRESS' && isAuthority && (
+  const canDecide = !isClosed && app.status === 'IN_PROGRESS' && isAuthority && (
     app.current_stage.code === 'SCRUTINY' || 
     app.current_stage.code === 'EVC_COMPLETED' || 
     app.current_stage.code === 'SAC_SHC_REVIEW'
   );
+
+  const canRespond = !isClosed && (app.case_holder === 'WITH_INSTITUTION') && (isApplicantInst || scope?.role === 'ADMIN');
+  const canClose = (isAuthority || isRegionalHead || scope?.role === 'ADMIN') && !isClosed;
 
   const sequence = app.stage_path.stage_sequence;
   const currentStageIdx = sequence.indexOf(app.current_stage.code);
@@ -190,9 +247,25 @@ export default function ApplicationDetailPage() {
               <h1 className="text-xl font-bold text-slate-900 tracking-tight font-mono">
                 {app.application_number}
               </h1>
-              <Badge variant={app.status === 'APPROVED' ? 'success' : app.status === 'REJECTED' ? 'danger' : 'info'}>
+              <Badge variant={app.status === 'APPROVED' ? 'success' : app.status === 'REJECTED' ? 'danger' : app.status === 'CLOSED' ? 'neutral' : 'info'}>
                 {app.status.replace('_', ' ')}
               </Badge>
+              {app.case_holder === 'WITH_INSTITUTION' ? (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                  <PauseCircle className="w-3.5 h-3.5 text-amber-600" />
+                  With Institution (Clock Paused)
+                </span>
+              ) : (app.case_holder === 'CLOSED' || app.status === 'CLOSED') ? (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-xs font-bold bg-slate-200 text-slate-800 border border-slate-300">
+                  <CheckCircle className="w-3.5 h-3.5 text-slate-600" />
+                  Case Closed ({app.closure_reason || 'Final'})
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                  <PlayCircle className="w-3.5 h-3.5 text-blue-600" />
+                  With AICTE (Active)
+                </span>
+              )}
               {app.escalation_required && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300">
                   <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
@@ -200,7 +273,7 @@ export default function ApplicationDetailPage() {
                 </span>
               )}
             </div>
-            <p className="text-xs text-slate-600 flex items-center gap-2">
+            <p className="text-xs text-slate-600 flex flex-wrap items-center gap-2">
               <span className="font-semibold text-slate-900">{app.institution.name}</span>
               <span>•</span>
               <span>{app.region_name}</span>
@@ -208,11 +281,29 @@ export default function ApplicationDetailPage() {
               <span className="text-slate-500">AY {app.academic_year}</span>
               <span>•</span>
               <span className="text-blue-800 font-medium">{app.category.title}</span>
+              <span>•</span>
+              <span className="text-slate-700 font-mono bg-slate-100 px-1.5 py-0.5 rounded">
+                With AICTE: <strong>{clockTotals.aicte_hours || 0}h</strong>
+              </span>
+              <span className="text-amber-800 font-mono bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                With Inst: <strong>{clockTotals.inst_hours || 0}h</strong>
+              </span>
             </p>
           </div>
 
           {/* Action Toolbar */}
           <div className="flex flex-wrap items-center gap-2">
+            {canRespond && (
+              <Button 
+                size="sm" 
+                onClick={() => setShowResponseModal(true)}
+                className="bg-amber-600 hover:bg-amber-700 text-white shadow-sm"
+              >
+                <Send className="w-4 h-4 mr-1.5" />
+                Submit Institution Response
+              </Button>
+            )}
+
             {canAdvance && (
               <Button 
                 size="sm" 
@@ -247,6 +338,18 @@ export default function ApplicationDetailPage() {
               </Button>
             )}
 
+            {canClose && (
+              <Button 
+                size="sm" 
+                variant="outline"
+                onClick={() => setShowCloseModal(true)}
+                className="border-slate-400 text-slate-700 hover:bg-slate-100 shadow-sm"
+              >
+                <CheckCircle className="w-4 h-4 mr-1.5 text-slate-600" />
+                Close Case
+              </Button>
+            )}
+
             {app.status === 'APPROVED' && (
               <Button 
                 size="sm" 
@@ -254,7 +357,7 @@ export default function ApplicationDetailPage() {
                 className="bg-emerald-700 hover:bg-emerald-800 text-white"
               >
                 <FileCheck className="w-4 h-4 mr-1.5" />
-                View Letter of Approval (LoA)
+                View Sample Order (LoA)
               </Button>
             )}
           </div>
@@ -443,9 +546,10 @@ export default function ApplicationDetailPage() {
             {app.case_summary && (
               <Card className="border-blue-200 bg-blue-50/20 shadow-sm">
                 <CardHeader className="py-2.5 px-4 bg-blue-50/60 border-b border-blue-100 flex flex-row items-center justify-between">
-                  <CardTitle className="text-xs text-blue-950 flex items-center gap-1.5 font-bold">
+                  <CardTitle className="text-xs text-blue-950 flex items-center gap-2 font-bold">
                     <Sparkles className="w-4 h-4 text-blue-700" />
-                    Automated Case Summary (Statutory Dossier Synthesis)
+                    <span>Automated Case Summary (Statutory Dossier Synthesis)</span>
+                    <DecisionSupportBadge size="sm" />
                   </CardTitle>
                   <span className="text-[10px] text-slate-500">
                     Engine: {app.case_summary.generated_by}
@@ -537,6 +641,74 @@ export default function ApplicationDetailPage() {
                     </div>
                   ))}
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Fair Pendency Clock Breakdown */}
+            <Card className="border-slate-200 bg-white">
+              <CardHeader className="py-2.5 px-4 bg-slate-50 border-b border-slate-100 flex flex-row items-center justify-between">
+                <CardTitle className="text-xs text-slate-800 flex items-center gap-1.5 font-bold">
+                  <Clock className="w-4 h-4 text-blue-800" />
+                  Fair Pendency Clock Breakdown ({clockSegments.length} segments)
+                </CardTitle>
+                <div className="flex items-center gap-2 text-[11px]">
+                  <span className="text-blue-700 font-medium">With AICTE: {clockTotals.aicte_hours || 0}h</span>
+                  <span>•</span>
+                  <span className="text-amber-700 font-medium">With Institution: {clockTotals.inst_hours || 0}h</span>
+                </div>
+              </CardHeader>
+              <CardContent className="p-4 space-y-3">
+                <p className="text-[11px] text-slate-500 italic">
+                  Fair processing guarantee: time spent waiting for institution clarification is recorded as WITH_INSTITUTION and strictly paused from AICTE officer SLA and escalation counters.
+                </p>
+                {clockSegments.length === 0 ? (
+                  <div className="py-4 text-center text-slate-400 text-xs">
+                    No clock segments recorded yet.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {clockSegments.map((seg, idx) => (
+                      <div
+                        key={seg.id || idx}
+                        className={`p-2.5 rounded-lg border text-xs flex items-center justify-between ${
+                          seg.holder === 'WITH_INSTITUTION'
+                            ? 'bg-amber-50/60 border-amber-200 text-amber-950'
+                            : 'bg-blue-50/40 border-blue-200 text-slate-800'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              seg.holder === 'WITH_INSTITUTION'
+                                ? 'bg-amber-200 text-amber-900'
+                                : 'bg-blue-200 text-blue-900'
+                            }`}
+                          >
+                            {seg.holder === 'WITH_INSTITUTION' ? '⏸ WITH INSTITUTION' : '▶ WITH AICTE'}
+                          </span>
+                          <span className="text-[11px] text-slate-600">
+                            {new Date(seg.started_at).toLocaleDateString('en-IN', {
+                              day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+                            })}
+                            {seg.ended_at ? ` → ${new Date(seg.ended_at).toLocaleDateString('en-IN', {
+                              day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+                            })}` : ' (Active)'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {seg.remarks && (
+                            <span className="text-[11px] text-slate-500 italic truncate max-w-[200px]" title={seg.remarks}>
+                              {seg.remarks}
+                            </span>
+                          )}
+                          <span className="font-mono font-bold text-slate-800">
+                            {seg.duration_hours != null ? `${seg.duration_hours}h` : 'Ongoing'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -830,7 +1002,7 @@ export default function ApplicationDetailPage() {
               <div className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between">
                 <h3 className="font-semibold text-sm flex items-center gap-2">
                   <Award className="w-4 h-4 text-emerald-400" />
-                  Official Statutory Order Viewer
+                  Sample Statutory Order Viewer (LoA/EoA)
                 </h3>
                 <button onClick={() => setShowLetterModal(false)} className="text-slate-400 hover:text-white">&times;</button>
               </div>
@@ -936,6 +1108,135 @@ export default function ApplicationDetailPage() {
                   Close Viewer
                 </Button>
               </div>
+            </div>
+          </div>
+        )}
+        {/* Modal: Institution Response */}
+        {showResponseModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
+            <div className="bg-white rounded-lg shadow-xl max-w-lg w-full border border-slate-200 overflow-hidden">
+              <div className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between">
+                <h3 className="font-semibold text-sm flex items-center gap-2">
+                  <Send className="w-4 h-4 text-amber-400" />
+                  Submit Institution Response & Clarifications
+                </h3>
+                <button onClick={() => setShowResponseModal(false)} className="text-slate-400 hover:text-white">&times;</button>
+              </div>
+              <form onSubmit={handleInstitutionResponse} className="p-4 space-y-4 text-xs">
+                <div className="p-2.5 bg-amber-50 border border-amber-200 rounded text-amber-950 text-[11px] leading-relaxed">
+                  <strong>Fair Clock Resume Notice:</strong> Submitting this response confirms compliance rectifications. The dossier holder will immediately transition from <strong>WITH_INSTITUTION</strong> back to <strong>WITH_AICTE</strong>, and re-enter Re-Scrutiny with a fresh stage SLA.
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-800 block mb-1">
+                    Compliance Clarification Remarks (Mandatory):
+                  </label>
+                  <textarea
+                    rows={4}
+                    placeholder="Provide detailed point-by-point response to deficiency grounds raised..."
+                    value={responseRemarks}
+                    onChange={(e) => setResponseRemarks(e.target.value)}
+                    className="w-full p-2 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-700"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-800 block mb-1">
+                    Supporting Document / Link (Optional):
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. https://portal.aicte-india.org/docs/clarification-signed.pdf"
+                    value={responseDocUrl}
+                    onChange={(e) => setResponseDocUrl(e.target.value)}
+                    className="w-full p-2 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-700"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                  <Button type="button" variant="outline" size="sm" onClick={() => setShowResponseModal(false)}>
+                    Cancel
+                  </Button>
+                  <Button 
+                    type="submit" 
+                    size="sm" 
+                    disabled={actionLoading || !responseRemarks.trim()} 
+                    className="bg-amber-600 hover:bg-amber-700 text-white"
+                  >
+                    {actionLoading ? 'Submitting...' : 'Submit Response & Resume Clock'}
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Close Case Formally */}
+        {showCloseModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
+            <div className="bg-white rounded-lg shadow-xl max-w-lg w-full border border-slate-200 overflow-hidden">
+              <div className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between">
+                <h3 className="font-semibold text-sm flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-emerald-400" />
+                  Formally Close Statutory Case
+                </h3>
+                <button onClick={() => setShowCloseModal(false)} className="text-slate-400 hover:text-white">&times;</button>
+              </div>
+              <form onSubmit={handleCloseApplication} className="p-4 space-y-4 text-xs">
+                <div className="p-2.5 bg-blue-50 border border-blue-200 rounded text-blue-900 text-[11px] leading-relaxed">
+                  <strong>Statutory Undertakings Verification:</strong> Case closure is strictly blocked by the workflow engine if any statutory undertakings on this application remain open or unverified.
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-800 block mb-1.5">
+                    Statutory Closure Reason (Mandatory):
+                  </label>
+                  <select
+                    value={closureReason}
+                    onChange={(e) => setClosureReason(e.target.value)}
+                    className="w-full p-2 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-700 bg-white"
+                  >
+                    <option value="ALL_CONDITIONS_MET">ALL_CONDITIONS_MET - All approval conditions satisfied & verified</option>
+                    <option value="REJECTED_FINAL">REJECTED_FINAL - Final rejection; statutory appeals exhausted</option>
+                    <option value="WITHDRAWN_BY_INSTITUTION">WITHDRAWN_BY_INSTITUTION - Voluntary withdrawal by applicant</option>
+                    <option value="SUPERSEDED">SUPERSEDED - Superseded by subsequent council order / court decree</option>
+                    <option value="OTHER">OTHER - Other administrative grounds (requires remarks)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-800 block mb-1">
+                    Closure Remarks {closureReason === 'OTHER' && <span className="text-rose-600">*</span>}:
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="Enter formal closure justification or reference order number..."
+                    value={closureRemarks}
+                    onChange={(e) => setClosureRemarks(e.target.value)}
+                    className="w-full p-2 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-700"
+                    required={closureReason === 'OTHER'}
+                  />
+                </div>
+
+                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded text-slate-600 text-[11px]">
+                  <strong>System Action on Closure:</strong> Moves stage to CLOSED, halts all SLA clocks, auto-resolves any active alerts with reason "Case closed", issues email notification to applicant institution, and locks dossier as permanent immutable audit record.
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                  <Button type="button" variant="outline" size="sm" onClick={() => setShowCloseModal(false)}>
+                    Cancel
+                  </Button>
+                  <Button 
+                    type="submit" 
+                    size="sm" 
+                    disabled={actionLoading || (closureReason === 'OTHER' && !closureRemarks.trim())} 
+                    className="bg-slate-800 hover:bg-slate-900 text-white"
+                  >
+                    {actionLoading ? 'Closing Case...' : 'Confirm Case Closure'}
+                  </Button>
+                </div>
+              </form>
             </div>
           </div>
         )}

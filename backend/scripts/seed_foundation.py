@@ -11,8 +11,9 @@ from app.models import (
     Region, Role, User, UserRoleEnum, Institution,
     ApplicationCategory, StagePath, Stage,
     AlertRule, EscalationRule, AlertTypeEnum, AlertSeverityEnum,
-    SystemConfig, CommunicationTemplate
+    SystemConfig, CommunicationTemplate, Holiday
 )
+from datetime import date
 
 
 def seed_foundation():
@@ -27,7 +28,9 @@ def seed_foundation():
             (UserRoleEnum.EVC_COORDINATOR, "EVC Coordinator", "Schedules inspection panels and tracks report submissions"),
             (UserRoleEnum.REGIONAL_HEAD, "Regional Head / Director", "Oversees regional pendency, endorses transitions, handles escalations"),
             (UserRoleEnum.COMPETENT_AUTHORITY, "Competent Authority / Council", "Senior council management, SAC/SHC appeals, and final approvals"),
-            (UserRoleEnum.INSTITUTION_USER, "Institution User", "Institution Principal / Registrar submitting compliance evidence")
+            (UserRoleEnum.INSTITUTION_USER, "Institution User", "Institution Principal / Registrar submitting compliance evidence"),
+            (UserRoleEnum.BUREAU_OFFICER, "Bureau Officer", "Policy bureau officer monitoring national pendency, alerts and statutory bottlenecks"),
+            (UserRoleEnum.COMMITTEE_MEMBER, "Committee Member", "EVC, SAC or SHC committee member recording observations and non-binding advisory recommendations")
         ]
 
         roles_map = {}
@@ -113,7 +116,10 @@ def seed_foundation():
             ("director@sahyadri.edu", "director@sahyadri.edu", "Dr. S. R. Patil (Director, Sahyadri Pune)", UserRoleEnum.INSTITUTION_USER, regions_map["RO_WEST"].id, institutions_map["1-204958381"].id),
             ("principal@kaveri.edu", "principal@kaveri.edu", "Dr. S. Ramachandran (Principal, Kaveri Coimbatore)", UserRoleEnum.INSTITUTION_USER, regions_map["RO_SOUTH"].id, institutions_map["1-305849201"].id),
             ("director@kalinga.edu", "director@kalinga.edu", "Dr. B. K. Mohanty (Director, Kalinga Bhubaneswar)", UserRoleEnum.INSTITUTION_USER, regions_map["RO_EAST"].id, institutions_map["1-409582711"].id),
-            ("principal@malwa.edu", "principal@malwa.edu", "Dr. N. K. Chouhan (Principal, Malwa Indore)", UserRoleEnum.INSTITUTION_USER, regions_map["RO_CENTRAL"].id, institutions_map["1-508392101"].id)
+            ("principal@malwa.edu", "principal@malwa.edu", "Dr. N. K. Chouhan (Principal, Malwa Indore)", UserRoleEnum.INSTITUTION_USER, regions_map["RO_CENTRAL"].id, institutions_map["1-508392101"].id),
+            ("bureau.officer@aicte.gov.in", "bureau.officer@aicte.gov.in", "Dr. Alok Verma (Bureau Officer)", UserRoleEnum.BUREAU_OFFICER, None, None),
+            ("evc.member@aicte.gov.in", "evc.member@aicte.gov.in", "Dr. Ramesh Sharma (EVC Member)", UserRoleEnum.COMMITTEE_MEMBER, None, None),
+            ("shc.member@aicte.gov.in", "shc.member@aicte.gov.in", "Prof. Sunita Rao (SHC Member)", UserRoleEnum.COMMITTEE_MEMBER, None, None)
         ]
 
         users_count = 0
@@ -132,7 +138,7 @@ def seed_foundation():
                 user.role_id = roles_map[role_code].id
                 user.institution_id = inst_id
         db.flush()
-        print(f"✓ Seeded/Updated demo users (total {len(users_data)} personas across all 5 regions).")
+        print(f"✓ Seeded/Updated demo users (total {len(users_data)} personas across all regions).")
 
         # 5. APPLICATION CATEGORIES
         app_cats_data = [
@@ -159,7 +165,8 @@ def seed_foundation():
             ("EVC_COMPLETED", "EVC Inspection Completed", 3, UserRoleEnum.REGIONAL_HEAD, "Report uploaded; awaiting regional head review"),
             ("SAC_SHC_REVIEW", "SAC / SHC Appellate Hearing", 14, UserRoleEnum.COMPETENT_AUTHORITY, "Standing Hearing or Appellate Committee review"),
             ("APPROVAL_GRANTED", "Approval Granted (Order Issued)", 5, UserRoleEnum.COMPETENT_AUTHORITY, "Formal EoA / Letter of Approval issued"),
-            ("APPROVAL_REJECTED", "Application Rejected", 0, UserRoleEnum.COMPETENT_AUTHORITY, "Statutory rejection letter with specific APH grounds")
+            ("APPROVAL_REJECTED", "Application Rejected", 0, UserRoleEnum.COMPETENT_AUTHORITY, "Statutory rejection letter with specific APH grounds"),
+            ("CLOSED", "Case Closed", 0, UserRoleEnum.COMPETENT_AUTHORITY, "Case concluded and archived following statutory disposal")
         ]
 
         for code, name, sla, role, desc in stages_data:
@@ -192,40 +199,42 @@ def seed_foundation():
         alert_rules_data = [
             ("RULE_SCRUTINY_NEAR_BREACH", "Scrutiny Near-Breach Alert", AlertTypeEnum.NEAR_BREACH, "APPLICATION",
              {"field": "days_remaining", "operator": "<=", "value": 2}, AlertSeverityEnum.MEDIUM,
-             "APH 2026 Chapter II Clause 2.3", "Application {app_num} is within 48h of Scrutiny SLA breach."),
+             "APH 2026 Chapter II Clause 2.3", "Application {app_num} is within 48h of Scrutiny SLA breach.", "WORKING"),
             ("RULE_SCRUTINY_OVERDUE", "Scrutiny SLA Overdue Alert", AlertTypeEnum.OVERDUE, "APPLICATION",
              {"field": "days_overdue", "operator": ">=", "value": 0}, AlertSeverityEnum.HIGH,
-             "APH 2026 Chapter II Clause 2.3", "Application {app_num} has exceeded Scrutiny SLA deadline."),
+             "APH 2026 Chapter II Clause 2.3", "Application {app_num} has exceeded Scrutiny SLA deadline.", "WORKING"),
             ("RULE_EVC_UNSCHEDULED", "EVC Unscheduled Warning", AlertTypeEnum.EVC_UNSCHEDULED, "APPLICATION",
              {"field": "days_in_stage", "operator": ">=", "value": 3}, AlertSeverityEnum.HIGH,
-             "APH 2026 Chapter II Clause 2.6", "Application {app_num} pending in EVC queue for >3 days without schedule."),
+             "APH 2026 Chapter II Clause 2.6", "Application {app_num} pending in EVC queue for >3 days without schedule.", "WORKING"),
             ("RULE_LEASE_90D", "Land Lease 90-Day Expiry Warning", AlertTypeEnum.DOCUMENT_EXPIRING, "DOCUMENT",
              {"field": "days_until_expiry", "operator": "<=", "value": 90}, AlertSeverityEnum.MEDIUM,
-             "APH 2026 Chapter I Clause 1.4(e)", "Land lease for {institution} expires in <= 90 days."),
+             "APH 2026 Chapter I Clause 1.4(e)", "Land lease for {institution} expires in <= 90 days.", "CALENDAR"),
             ("RULE_LEASE_30D", "Land Lease 30-Day Critical Warning", AlertTypeEnum.DOCUMENT_EXPIRING, "DOCUMENT",
              {"field": "days_until_expiry", "operator": "<=", "value": 30}, AlertSeverityEnum.HIGH,
-             "APH 2026 Chapter I Clause 1.4(e)", "Land lease for {institution} expires in <= 30 days. Action required."),
+             "APH 2026 Chapter I Clause 1.4(e)", "Land lease for {institution} expires in <= 30 days. Action required.", "CALENDAR"),
             ("RULE_FIRE_NOC_EXPIRED", "Fire NOC Expired Statutory Violation", AlertTypeEnum.DOCUMENT_EXPIRED, "DOCUMENT",
              {"field": "is_expired", "operator": "==", "value": True}, AlertSeverityEnum.CRITICAL,
-             "APH 2026 Chapter I Clause 1.4(g)", "Fire Safety NOC has expired for {institution}. Approval must be held."),
+             "APH 2026 Chapter I Clause 1.4(g)", "Fire Safety NOC has expired for {institution}. Approval must be held.", "CALENDAR"),
             ("RULE_UNDERTAKING_DUE_15D", "Undertaking Due in 15 Days", AlertTypeEnum.UNDERTAKING_DUE, "UNDERTAKING",
              {"field": "days_until_due", "operator": "<=", "value": 15}, AlertSeverityEnum.MEDIUM,
-             "APH 2026 Chapter III Clause 3.2", "Conditional undertaking condition due in 15 days for {institution}."),
+             "APH 2026 Chapter III Clause 3.2", "Conditional undertaking condition due in 15 days for {institution}.", "CALENDAR"),
             ("RULE_MULTIPLE_REVERTS", "Repeated Reverts Escalation", AlertTypeEnum.MULTIPLE_REVERTS, "APPLICATION",
              {"field": "revert_count", "operator": ">=", "value": 2}, AlertSeverityEnum.HIGH,
-             "APH 2026 Chapter II Clause 2.5", "Application {app_num} has been reverted 2 or more times. Requires supervision.")
+             "APH 2026 Chapter II Clause 2.5", "Application {app_num} has been reverted 2 or more times. Requires supervision.", "WORKING")
         ]
 
-        for code, name, atype, etype, cond, sev, aph, tmpl in alert_rules_data:
+        for code, name, atype, etype, cond, sev, aph, tmpl, day_basis in alert_rules_data:
             rule = db.query(AlertRule).filter(AlertRule.code == code).first()
             if not rule:
                 rule = AlertRule(
                     code=code, name=name, alert_type=atype, entity_type=etype,
                     condition_logic=cond, severity=sev, aph_reference_clause=aph,
-                    template_message=tmpl, is_active=True
+                    template_message=tmpl, is_active=True, day_basis=day_basis
                 )
                 db.add(rule)
                 db.flush()
+            else:
+                rule.day_basis = day_basis
 
             # Ensure 3-tier escalation rules for all alert rules (L1 Officer -> L2 Regional Head -> L3 Competent Authority)
             for tier, role, delay, act in [
@@ -334,6 +343,19 @@ def seed_foundation():
                 tmpl.variables = vars_list
         db.flush()
         print("✓ Seeded communication templates.")
+
+        # 11. SAMPLE HOLIDAYS (Fixed-date national holidays for academic year 2026)
+        sample_holidays = [
+            (date(2026, 1, 26), "Republic Day (sample holiday list, to be replaced by the official AICTE calendar)", None, "NATIONAL"),
+            (date(2026, 8, 15), "Independence Day (sample holiday list, to be replaced by the official AICTE calendar)", None, "NATIONAL"),
+            (date(2026, 10, 2), "Mahatma Gandhi Jayanti (sample holiday list, to be replaced by the official AICTE calendar)", None, "NATIONAL"),
+            (date(2026, 12, 25), "Christmas Day (sample holiday list, to be replaced by the official AICTE calendar)", None, "NATIONAL"),
+        ]
+        for h_date, h_name, h_reg, h_type in sample_holidays:
+            if not db.query(Holiday).filter(Holiday.date == h_date, Holiday.region_id == h_reg).first():
+                db.add(Holiday(date=h_date, name=h_name, region_id=h_reg, holiday_type=h_type))
+        db.flush()
+        print("✓ Seeded sample national holidays.")
 
         db.commit()
         print("=== FOUNDATION SEED COMPLETED SUCCESSFULLY ===")

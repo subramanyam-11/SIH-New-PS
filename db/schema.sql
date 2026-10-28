@@ -53,7 +53,9 @@ CREATE TYPE user_role_enum AS ENUM (
     'EVC_COORDINATOR',
     'REGIONAL_HEAD',
     'COMPETENT_AUTHORITY',
-    'INSTITUTION_USER'
+    'INSTITUTION_USER',
+    'BUREAU_OFFICER',
+    'COMMITTEE_MEMBER'
 );
 
 CREATE TYPE application_status_enum AS ENUM (
@@ -61,7 +63,8 @@ CREATE TYPE application_status_enum AS ENUM (
     'IN_PROGRESS',
     'APPROVED',
     'REJECTED',
-    'WITHDRAWN'
+    'WITHDRAWN',
+    'CLOSED'
 );
 
 CREATE TYPE stage_status_enum AS ENUM (
@@ -74,17 +77,28 @@ CREATE TYPE stage_status_enum AS ENUM (
 
 CREATE TYPE evc_status_enum AS ENUM (
     'PENDING_SCHEDULE',
+    'PENDING_ASSIGNMENT',
+    'ASSIGNED',
     'SCHEDULED',
     'VISIT_COMPLETED',
+    'VISIT_DONE',
     'REPORT_SUBMITTED',
+    'REPORT_RECEIVED',
+    'CLOSED',
     'CANCELLED'
 );
 
 CREATE TYPE undertaking_status_enum AS ENUM (
     'PENDING_SUBMISSION',
+    'PENDING',
+    'SUBMITTED',
     'UNDER_VERIFICATION',
+    'VERIFIED',
+    'REJECTED',
+    'NEEDS_MORE_EVIDENCE',
     'COMPLIED',
     'OVERDUE',
+    'ESCALATED',
     'DEFAULTED'
 );
 
@@ -99,7 +113,10 @@ CREATE TYPE document_type_enum AS ENUM (
 
 CREATE TYPE document_status_enum AS ENUM (
     'ACTIVE',
+    'VALID',
+    'EXPIRING',
     'RENEWAL_SUBMITTED',
+    'RENEWED',
     'EXPIRING_SOON',
     'EXPIRED',
     'SUPERSEDED'
@@ -252,6 +269,12 @@ CREATE TABLE applications (
     escalation_required BOOLEAN DEFAULT FALSE,
     escalation_reason TEXT,
 
+    -- Phase 6 Fair Pendency Clock & Closed State Fields
+    case_holder VARCHAR(30) NOT NULL DEFAULT 'WITH_AICTE',
+    closed_at TIMESTAMP WITH TIME ZONE,
+    closure_reason VARCHAR(50),
+    closure_remarks TEXT,
+
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -286,25 +309,65 @@ CREATE TABLE stage_history (
 );
 
 -- ==============================================================================
--- 5. EVC (EXPERT VISIT COMMITTEE) SCHEDULING & REPORTS
+-- 4.1 UPLOADED FILES & EVIDENCE ARTIFACTS
 -- ==============================================================================
+
+CREATE TABLE uploaded_files (
+    id SERIAL PRIMARY KEY,
+    original_filename VARCHAR(255) NOT NULL,
+    stored_filename VARCHAR(255) NOT NULL,
+    file_path VARCHAR(500) NOT NULL,
+    file_size_bytes INT NOT NULL,
+    mime_type VARCHAR(100) NOT NULL,
+    checksum_sha256 VARCHAR(64) NOT NULL,
+    entity_type VARCHAR(50),                        -- 'UNDERTAKING_EVIDENCE', 'DOCUMENT_RENEWAL', 'EVC_REPORT'
+    entity_id INT,
+    uploaded_by INT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_uploaded_files_entity ON uploaded_files(entity_type, entity_id);
+
+-- ==============================================================================
+-- 5. EVC (EXPERT VISIT COMMITTEE) SCHEDULING & EXPERTS POOL
+-- ==============================================================================
+
+CREATE TABLE evc_experts (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(150) NOT NULL,
+    designation VARCHAR(150) NOT NULL,              -- e.g. 'Professor', 'Dean', 'Principal'
+    discipline VARCHAR(100) NOT NULL,               -- e.g. 'Computer Science', 'Mechanical Engineering'
+    region_id INT NOT NULL REFERENCES regions(id) ON DELETE RESTRICT,
+    home_institution VARCHAR(200) NOT NULL,         -- Used for conflict-of-interest check
+    city VARCHAR(100) NOT NULL,                     -- Used for geographic conflict check
+    is_available BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_evc_experts_region_id ON evc_experts(region_id);
 
 CREATE TABLE evc_visits (
     id SERIAL PRIMARY KEY,
     application_id INT NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
-    status evc_status_enum NOT NULL DEFAULT 'PENDING_SCHEDULE',
+    status evc_status_enum NOT NULL DEFAULT 'PENDING_ASSIGNMENT',
     coordinator_id INT REFERENCES users(id) ON DELETE SET NULL,
     
     scheduled_date DATE,
+    scheduled_time VARCHAR(50),
     visit_type VARCHAR(50) DEFAULT 'PHYSICAL',      -- 'PHYSICAL', 'VIRTUAL', 'SURPRISE'
     committee_chair VARCHAR(150),
     committee_experts JSONB DEFAULT '[]'::jsonb,    -- Array of expert names, affiliations, specializations
+    assigned_experts JSONB DEFAULT '[]'::jsonb,     -- 3 assigned experts with conflict checks
     
     visit_completed_at TIMESTAMP WITH TIME ZONE,
+    visit_summary TEXT,
     report_uploaded_at TIMESTAMP WITH TIME ZONE,
     report_file_url VARCHAR(255),
+    report_file_id INT REFERENCES uploaded_files(id) ON DELETE SET NULL,
     outcome_recommendation VARCHAR(50),             -- 'RECOMMENDED', 'DEFICIENCIES_FOUND', 'REJECTED'
     remarks TEXT,
+    closed_at TIMESTAMP WITH TIME ZONE,
+    closed_by INT REFERENCES users(id) ON DELETE SET NULL,
     
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -321,7 +384,11 @@ CREATE TABLE undertakings (
     condition_title VARCHAR(255) NOT NULL,          -- e.g. 'Build Ramp and Divyangjan Lift by Term 2'
     description TEXT NOT NULL,
     due_date DATE NOT NULL,
-    status undertaking_status_enum NOT NULL DEFAULT 'PENDING_SUBMISSION',
+    status undertaking_status_enum NOT NULL DEFAULT 'PENDING',
+    
+    rejection_count INT DEFAULT 0,
+    escalated_to_tier INT DEFAULT 1,
+    escalation_reason TEXT,
     
     assigned_verifier_id INT REFERENCES users(id) ON DELETE SET NULL,
     verified_at TIMESTAMP WITH TIME ZONE,
@@ -331,18 +398,32 @@ CREATE TABLE undertakings (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE undertaking_history (
+    id SERIAL PRIMARY KEY,
+    undertaking_id INT NOT NULL REFERENCES undertakings(id) ON DELETE CASCADE,
+    from_status VARCHAR(50),
+    to_status VARCHAR(50) NOT NULL,
+    action_by INT REFERENCES users(id) ON DELETE SET NULL,
+    action_role VARCHAR(50),
+    remarks TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_undertaking_history_undertaking_id ON undertaking_history(undertaking_id);
+
 CREATE TABLE undertaking_evidence (
     id SERIAL PRIMARY KEY,
     undertaking_id INT NOT NULL REFERENCES undertakings(id) ON DELETE CASCADE,
     submitted_by INT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     file_name VARCHAR(255) NOT NULL,
     file_url VARCHAR(255) NOT NULL,
+    file_id INT REFERENCES uploaded_files(id) ON DELETE SET NULL,
     comments TEXT,
     submitted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- ==============================================================================
--- 7. LEASE & STATUTORY DOCUMENT VALIDITY
+-- 7. LEASE & STATUTORY DOCUMENT VALIDITY (VERSIONED)
 -- ==============================================================================
 
 CREATE TABLE documents (
@@ -356,6 +437,12 @@ CREATE TABLE documents (
     issue_date DATE NOT NULL,
     expiry_date DATE NOT NULL,                      -- Key tracking column
     status document_status_enum NOT NULL DEFAULT 'ACTIVE',
+    
+    version_number INT DEFAULT 1,
+    previous_version_id INT REFERENCES documents(id) ON DELETE SET NULL,
+    renewal_file_id INT REFERENCES uploaded_files(id) ON DELETE SET NULL,
+    verified_by INT REFERENCES users(id) ON DELETE SET NULL,
+    verification_remarks TEXT,
     
     file_url VARCHAR(255),
     renewal_application_ref VARCHAR(100),
@@ -380,6 +467,7 @@ CREATE TABLE alert_rules (
     severity alert_severity_enum NOT NULL,
     aph_reference_clause VARCHAR(100),              -- Regulatory citation for explainability
     template_message TEXT NOT NULL,
+    day_basis VARCHAR(20) NOT NULL DEFAULT 'WORKING', -- 'WORKING' or 'CALENDAR'
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -512,7 +600,7 @@ CREATE TABLE audit_log (
     id SERIAL PRIMARY KEY,
     table_name VARCHAR(100) NOT NULL,
     record_id INT NOT NULL,
-    action VARCHAR(20) NOT NULL,                    -- 'INSERT', 'UPDATE', 'DELETE', 'STATE_TRANSITION'
+    action VARCHAR(100) NOT NULL,
     old_values JSONB,
     new_values JSONB,
     actor_id INT REFERENCES users(id) ON DELETE SET NULL,
@@ -560,3 +648,59 @@ CREATE INDEX idx_alerts_recipient ON alerts(recipient_user_id, status);
 CREATE INDEX idx_alerts_role ON alerts(recipient_role, status);
 CREATE INDEX idx_alerts_app_id ON alerts(application_id);
 CREATE INDEX idx_notifications_unread ON notifications(recipient_user_id, is_read);
+
+-- ==============================================================================
+-- 11. PHASE 6: V2 ALIGNMENT MODULES
+-- ==============================================================================
+
+-- Fair Pendency Clock Segments
+CREATE TABLE clock_segments (
+    id SERIAL PRIMARY KEY,
+    application_id INT NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+    stage_id INT NOT NULL REFERENCES stages(id),
+    holder VARCHAR(30) NOT NULL, -- 'WITH_AICTE' or 'WITH_INSTITUTION'
+    started_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    ended_at TIMESTAMP WITH TIME ZONE,
+    duration_hours FLOAT,
+    reason TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+CREATE INDEX idx_clock_segments_app_started ON clock_segments(application_id, started_at);
+CREATE INDEX idx_clock_segments_holder ON clock_segments(holder);
+
+-- Working-Day Calendar & Holidays
+CREATE TABLE holidays (
+    id SERIAL PRIMARY KEY,
+    date DATE NOT NULL,
+    name VARCHAR(150) NOT NULL,
+    region_id INT REFERENCES regions(id) ON DELETE SET NULL,
+    holiday_type VARCHAR(50) NOT NULL DEFAULT 'NATIONAL', -- 'NATIONAL', 'REGIONAL', 'RESTRICTED'
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+CREATE INDEX idx_holidays_date ON holidays(date);
+CREATE INDEX idx_holidays_region ON holidays(region_id);
+
+-- Committee Assignments & Observations (EVC / SAC / SHC)
+CREATE TABLE committee_assignments (
+    id SERIAL PRIMARY KEY,
+    application_id INT NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+    committee_type VARCHAR(20) NOT NULL, -- 'EVC', 'SAC', 'SHC'
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    assigned_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'ASSIGNED',
+    notes TEXT
+);
+CREATE INDEX idx_committee_assignments_app ON committee_assignments(application_id, committee_type);
+CREATE INDEX idx_committee_assignments_user ON committee_assignments(user_id);
+
+CREATE TABLE committee_observations (
+    id SERIAL PRIMARY KEY,
+    application_id INT NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+    committee_type VARCHAR(20) NOT NULL, -- 'EVC', 'SAC', 'SHC'
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    member_name VARCHAR(150) NOT NULL,
+    observation_text TEXT NOT NULL,
+    recommendation VARCHAR(50) NOT NULL, -- 'RECOMMEND_APPROVAL', 'RECOMMEND_REJECTION', etc.
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+CREATE INDEX idx_committee_obs_app ON committee_observations(application_id, committee_type);

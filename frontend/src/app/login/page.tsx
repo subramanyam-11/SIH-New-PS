@@ -58,6 +58,20 @@ const DEMO_PERSONAS: DemoPersona[] = [
     name: 'Apex Institute (Kanpur)',
     email: 'principal@apexkanpur.edu',
     badge: 'neutral'
+  },
+  {
+    role: 'BUREAU_OFFICER',
+    label: 'Bureau Officer',
+    name: 'Dr. Alok Verma',
+    email: 'bureau.officer@aicte.gov.in',
+    badge: 'info'
+  },
+  {
+    role: 'COMMITTEE_MEMBER',
+    label: 'Committee Member',
+    name: 'Dr. Ramesh Sharma (EVC)',
+    email: 'evc.member@aicte.gov.in',
+    badge: 'warning'
   }
 ];
 
