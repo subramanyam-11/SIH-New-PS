@@ -227,11 +227,24 @@ def seed_foundation():
                 db.add(rule)
                 db.flush()
 
-                # Add escalation rules for overdue rules
-                if code == "RULE_SCRUTINY_OVERDUE":
-                    db.add(EscalationRule(alert_rule_id=rule.id, tier_level=1, target_role=UserRoleEnum.SCRUTINY_OFFICER, trigger_delay_days=0, action_required="Desk notice"))
-                    db.add(EscalationRule(alert_rule_id=rule.id, tier_level=2, target_role=UserRoleEnum.REGIONAL_HEAD, trigger_delay_days=2, action_required="Regional intervention"))
-                    db.add(EscalationRule(alert_rule_id=rule.id, tier_level=3, target_role=UserRoleEnum.COMPETENT_AUTHORITY, trigger_delay_days=5, action_required="Council docket"))
+            # Ensure 3-tier escalation rules for all alert rules (L1 Officer -> L2 Regional Head -> L3 Competent Authority)
+            for tier, role, delay, act in [
+                (1, UserRoleEnum.SCRUTINY_OFFICER, 0, "L1 Desk Officer Action Notice"),
+                (2, UserRoleEnum.REGIONAL_HEAD, 2, "L2 Regional Head Escalation Notice"),
+                (3, UserRoleEnum.COMPETENT_AUTHORITY, 5, "L3 Competent Authority Council Review")
+            ]:
+                esc = db.query(EscalationRule).filter(
+                    EscalationRule.alert_rule_id == rule.id,
+                    EscalationRule.tier_level == tier
+                ).first()
+                if not esc:
+                    db.add(EscalationRule(
+                        alert_rule_id=rule.id,
+                        tier_level=tier,
+                        target_role=role,
+                        trigger_delay_days=delay,
+                        action_required=act
+                    ))
         db.flush()
         print("✓ Seeded alert rules and 3-tier escalation hierarchies.")
 

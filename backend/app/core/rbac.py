@@ -54,6 +54,23 @@ def require_roles(*allowed_roles: UserRoleEnum):
     return role_checker
 
 
+def require_role(roles):
+    """
+    Dependency factory accepting list of role codes or a single role string.
+    """
+    if isinstance(roles, str):
+        roles = [roles]
+    def role_checker(current_user: User = Depends(get_current_user)) -> User:
+        user_role = current_user.role.code if current_user.role else ""
+        if user_role not in roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access denied. Required roles: {roles}, but user has role: {user_role}"
+            )
+        return current_user
+    return role_checker
+
+
 class UserScope:
     """Helper to inspect and apply data scoping to queries"""
     def __init__(self, user: User):

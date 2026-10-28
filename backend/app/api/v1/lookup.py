@@ -12,22 +12,24 @@ router = APIRouter(prefix="", tags=["Lookups & Scope"])
 # Screen mapping based on docs/03_roles_and_permissions.md
 ROLE_SCREEN_PERMISSIONS = {
     UserRoleEnum.ADMIN: [
-        "/dashboard", "/applications", "/evc-queue", "/undertakings",
-        "/document-validity", "/settings/rules", "/reports"
+        "/dashboard", "/applications", "/alerts", "/escalation-matrix", "/notifications",
+        "/admin/outbox", "/evc-queue", "/undertakings", "/document-validity", "/settings/rules", "/reports"
     ],
     UserRoleEnum.COMPETENT_AUTHORITY: [
-        "/dashboard", "/applications", "/evc-queue", "/undertakings",
-        "/document-validity", "/reports"
+        "/dashboard", "/applications", "/alerts", "/escalation-matrix", "/notifications",
+        "/evc-queue", "/undertakings", "/document-validity", "/reports"
     ],
     UserRoleEnum.REGIONAL_HEAD: [
-        "/dashboard", "/applications", "/evc-queue", "/undertakings",
-        "/document-validity", "/reports"
+        "/dashboard", "/applications", "/alerts", "/escalation-matrix", "/notifications",
+        "/evc-queue", "/undertakings", "/document-validity", "/reports"
     ],
     UserRoleEnum.SCRUTINY_OFFICER: [
-        "/dashboard", "/applications", "/undertakings", "/document-validity"
+        "/dashboard", "/applications", "/alerts", "/escalation-matrix", "/notifications",
+        "/undertakings", "/document-validity"
     ],
     UserRoleEnum.EVC_COORDINATOR: [
-        "/dashboard", "/applications", "/evc-queue", "/document-validity"
+        "/dashboard", "/applications", "/alerts", "/escalation-matrix", "/notifications",
+        "/evc-queue", "/document-validity"
     ],
     UserRoleEnum.INSTITUTION_USER: [
         "/portal", "/portal/applications", "/portal/undertakings", "/portal/documents"

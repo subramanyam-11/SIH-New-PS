@@ -12,7 +12,11 @@ import {
   ShieldCheck,
   Sliders,
   BarChart3,
-  Building2
+  Building2,
+  AlertTriangle,
+  Network,
+  Mail,
+  Bell
 } from 'lucide-react';
 
 interface NavItem {
@@ -24,10 +28,14 @@ interface NavItem {
 const ALL_NAV_ITEMS: NavItem[] = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Applications', href: '/applications', icon: FileText },
+  { name: 'Alerts', href: '/alerts', icon: AlertTriangle },
+  { name: 'Escalation Matrix', href: '/escalation-matrix', icon: Network },
+  { name: 'Notifications', href: '/notifications', icon: Bell },
+  { name: 'Email Outbox', href: '/admin/outbox', icon: Mail },
   { name: 'EVC Queue', href: '/evc-queue', icon: CalendarCheck2 },
   { name: 'Undertakings', href: '/undertakings', icon: ClipboardList },
   { name: 'Document Validity', href: '/document-validity', icon: ShieldCheck },
-  { name: 'APH Rules', href: '/settings/rules', icon: Sliders },
+  { name: 'APH & Escalation Rules', href: '/settings/rules', icon: Sliders },
   { name: 'Reports', href: '/reports', icon: BarChart3 },
 ];
 

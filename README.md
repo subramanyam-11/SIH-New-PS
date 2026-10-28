@@ -89,58 +89,84 @@ All planning specifications and Phase 2 reports are available under [`docs/`](fi
 10. **[08. Team Split & Execution Plan](file:///Users/subramanyam/Sih%20new/docs/08_team_split_and_timeline.md)** - 5-member work allocation across Phases 2 to 7.
 11. **[09. Phase 2 Foundation Report](file:///Users/subramanyam/Sih%20new/docs/09_phase2_foundation_report.md)** - Detailed summary of foundation build, tests, and endpoints.
 12. **[10. Phase 3 Core Engine Report](file:///Users/subramanyam/Sih%20new/docs/10_phase3_core_engine_report.md)** - Detailed summary of state machine, 60-application dataset, SLA clock, and Letter of Approval generation.
+13. **[11. Phase 4 Alerts & Watchers Report](file:///Users/subramanyam/Sih%20new/docs/11_phase4_alerts_report.md)** - Detailed report on alert rules engine, APScheduler, 3-tier escalation ladder, notifications, and outbox queue.
 
 ---
 
 ## 5. Running Tests and Verification
 
 ```bash
-# Run backend test suite (18 unit, RBAC, and workflow engine tests)
+# Run backend test suite (27 unit, RBAC, workflow engine, and alert watcher tests)
 make test
 # Or: cd backend && .venv/bin/pytest -v
 
-# Run automated end-to-end smoke test suite
+# Run automated end-to-end smoke test suite (Phases 1 through 4)
 make smoke
 # Or: ./scripts/smoke_test.sh
 
-# Re-seed 60 synthetic applications with historical transitions
+# Re-seed demo dataset (60 applications, 12 EVC records, 20 undertakings, 25 documents, and alert checks)
 make seed-demo
 ```
 
 ---
 
-## 6. Phase 3 Interactive Demo Walkthrough
+## 6. Phase 4 Interactive Demo Walkthrough
 
-### Scenario A: Regulatory Application Dossier & Stage Advance
-1. Go to `http://localhost:3000/login` and click **Scrutiny Officer** (Amit Sharma).
-2. You land on the Northern RO application queue. Click on any application in `SUBMITTED` or `SCRUTINY` (e.g. `AICTE/2026/APP-10001`).
-3. View the **Visual Pathway Stepper**, **SLA Countdown Timer**, and **AI Case Docket Summary**.
-4. Click **Complete Stage**, enter verification remarks (e.g. *"Statutory documents verified and cleared"*), and submit. The dossier dynamically advances to the next stage along its APH pathway.
+### Scenario A: Real-Time Alert Engine & Explainable Drawer
+1. Log in via one-click persona as **Regional Head (North)** (`ro.north@aicte.gov.in`) or **Admin** (`admin@aicte.gov.in`).
+2. Navigate to **Alerts** (`/alerts`) via the left sidebar.
+3. Observe the live summary cards (Critical: 5, High: 22, Medium: 34) loaded strictly from the database.
+4. Click on any alert (e.g. `RULE_FIRE_NOC_EXPIRED` or `RULE_SCRUTINY_OVERDUE`).
+5. Inspect the **"Why This Alert Fired"** explainability panel:
+   - Plain-English explanation sentence
+   - Actual observed value vs. statutory threshold
+   - Regulatory APH clause with the visible `(sample reference)` marker
+   - Escalation history timeline
 
-### Scenario B: Deficiency Loop & Revert Cap Enforcement
-1. As a Scrutiny Officer, open a scrutiny dossier (e.g. `AICTE/2026/APP-10026`).
-2. Click **Return for Clarification**. Select deficiency tags (`DEF_FIRE_NOC`, `DEF_INFRASTRUCTURE`), enter detailed remarks, and submit.
-3. The application moves to `RE_SCRUTINY` and increments `revert_count`. Notice that an urgent deficiency communication draft is automatically generated.
-4. Open Application `AICTE/2026/APP-10027` (already has 2 reverts). Notice the **Escalation Required** banner indicating the regulatory revert cap was reached.
+### Scenario B: Procedural Officer Actions (Acknowledge, Snooze, Resolve)
+1. On the open alert drawer, click **Acknowledge** and enter remarks. The status transitions to `ACKNOWLEDGED`.
+2. Click **Snooze**, choose 24 Hours, and enter a substantive justification. The alert is snoozed. Note: attempting a third snooze triggers the strict database limit error (max 2).
+3. Log in as **Competent Authority** (`chairman@aicte.gov.in`) or **Admin**. Open the alert drawer and click **Mark Resolved** with a written justification. The alert is statutorily resolved.
 
-### Scenario C: Final Decision & Statutory Letter of Approval
-1. Log in as **Competent Authority** (Prof. T. G. Sitharam) or **Admin**.
-2. Open an application in committee review or scrutiny stage (e.g. `AICTE/2026/APP-10051`).
-3. Click **Record Decision**, select **Approve**, enter approval notes, and submit.
-4. The application transitions to `APPROVAL_GRANTED`. Click **View Official Order** to preview the rendered Letter of Approval complete with reference number, Council seal, and visible statutory disclaimer watermark:
-   > *"SAMPLE - SYNTHETIC DEMO DOCUMENT, NOT AN OFFICIAL AICTE ORDER"*
+### Scenario C: Regional Escalation Hierarchy Matrix
+1. Click **Escalation Matrix** (`/escalation-matrix`) in the navigation menu.
+2. View the 5 regional offices against the 3-tier escalation ladder:
+   - **Tier 1**: Scrutiny / Desk Officer (Assigned officer, delay 0d)
+   - **Tier 2**: Regional Head (delay 2d)
+   - **Tier 3**: Member Secretary / Competent Authority (delay 5d)
+3. View open alert counts at each tier and click through to inspect filtered alerts.
 
-### Scenario D: Hackathon Demo Clock Time-Travel
-1. Notice the floating **Demo Time-Travel Clock** bar on the Applications page (`/applications`).
-2. Click **+24 Hours** or **+48 Hours**. The system dynamically updates stage elapsed days and shifts applications from `ON_TIME` to `APPROACHING_DUE` or `OVERDUE`.
-3. Click **Reset Clock** to return to real-world UTC time.
+### Scenario D: Dynamic Time-Travel Escalation & Outbox Queue
+1. In the Top Bar, observe the **Notification Bell** with unread count badge. Click it to preview the latest alerts.
+2. Click **Run Checks Now** in the top bar to evaluate rules on demand.
+3. Advance the demo clock by **+24 Hours** or **+168 Hours (+7 Days)** on `/applications`.
+4. Observe that the alert engine automatically evaluates the advanced clock: near-breach alerts upgrade to overdue, and unacknowledged alerts escalate from L1 to L2 and L3.
+5. As Admin, navigate to **Email Outbox** (`/admin/outbox`). Inspect all queued notifications. Because `EMAIL_SEND_ENABLED=false` by default, all emails are safely held in `SUPPRESSED` status with full in-app previewability.
 
 ---
 
-## 7. Next Step: Phase 4 (Watchers: Alert Rules Engine & Escalation Ladder)
+## 7. Email Outbox Configuration (`EMAIL_SEND_ENABLED`)
 
-Ready to begin **Phase 4 (Watchers)**:
-- Implement the background alert scanner service evaluating 8 pre-seeded statutory rules.
-- Implement the 3-tier escalation ladder (Scrutiny Officer $\rightarrow$ Regional Head $\rightarrow$ Member Secretary).
-- Implement in-app notifications and email dispatch queue.
-- Build the Regional Escalation Matrix and Officer Notifications Center on the frontend.
+In `.env`:
+```ini
+# When false (default for hackathon demo): emails stay in database outbox as SUPPRESSED
+# and are viewable in the app at /admin/outbox without sending actual SMTP traffic.
+EMAIL_SEND_ENABLED=false
+
+# When true: emails are dispatched through configured SMTP credentials
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=demo@aicte.gov.in
+SMTP_PASSWORD=secret
+```
+
+---
+
+## 8. Ready for Phase 5 (Specialized Screens & Portals)
+
+Phase 4 watchers and alert engine are fully validated and operating. Next in Phase 5:
+- Full EVC queue scheduling & inspection panel assignment screens (`/evc-queue`)
+- Undertaking compliance tracker screens (`/undertakings`)
+- Document validity management & renewal verification screens (`/document-validity`)
+- Comprehensive reports & regional pendency analytics (`/reports`)
+- Dedicated institution portal workflows (`/portal`)

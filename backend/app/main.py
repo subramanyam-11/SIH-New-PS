@@ -5,11 +5,24 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from app.core.config import settings
 from app.core.database import engine
+from contextlib import asynccontextmanager
 from app.api.v1.auth import router as auth_router
 from app.api.v1.config import router as config_router
 from app.api.v1.lookup import router as lookup_router
 from app.api.v1.applications import router as applications_router
+from app.api.v1.alerts import router as alerts_router
+from app.services.scheduler import start_scheduler, stop_scheduler
 from app.schemas import HealthCheckResponse
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Launch background scheduler
+    start_scheduler()
+    yield
+    # Shutdown: Stop scheduler
+    stop_scheduler()
+
 
 app = FastAPI(
     title="AICTE Approval Workflow Automation API",
@@ -17,7 +30,8 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
-    openapi_url="/openapi.json"
+    openapi_url="/openapi.json",
+    lifespan=lifespan,
 )
 
 # CORS Middleware
@@ -67,6 +81,7 @@ app.include_router(auth_router, prefix="/api/v1")
 app.include_router(config_router, prefix="/api/v1")
 app.include_router(lookup_router, prefix="/api/v1")
 app.include_router(applications_router, prefix="/api/v1")
+app.include_router(alerts_router, prefix="/api/v1")
 
 
 if __name__ == "__main__":

@@ -6,7 +6,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/Table';
-import { lookupApi, configApi, Institution, Region, StagePath } from '@/lib/api';
+import { lookupApi, configApi, alertsApi, Institution, Region, StagePath, AlertSummary } from '@/lib/api';
 import {
   ShieldAlert,
   Clock,
@@ -15,7 +15,8 @@ import {
   FileCheck2,
   Building,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  ArrowRight
 } from 'lucide-react';
 
 export default function HomePage() {
@@ -23,20 +24,23 @@ export default function HomePage() {
   const [institutions, setInstitutions] = useState<Institution[]>([]);
   const [stagePaths, setStagePaths] = useState<StagePath[]>([]);
   const [regions, setRegions] = useState<Region[]>([]);
+  const [alertSummary, setAlertSummary] = useState<AlertSummary | null>(null);
   const [loadingData, setLoadingData] = useState(true);
 
   useEffect(() => {
     async function loadFoundationData() {
       try {
         setLoadingData(true);
-        const [instRes, pathsRes, regRes] = await Promise.all([
+        const [instRes, pathsRes, regRes, alertSummaryRes] = await Promise.all([
           lookupApi.getInstitutions(),
           configApi.getStagePaths(),
-          lookupApi.getRegions()
+          lookupApi.getRegions(),
+          alertsApi.getSummary().catch(() => null),
         ]);
         setInstitutions(instRes);
         setStagePaths(pathsRes);
         setRegions(regRes);
+        setAlertSummary(alertSummaryRes);
       } catch (err) {
         console.error('Error fetching foundation data', err);
       } finally {
@@ -131,13 +135,31 @@ export default function HomePage() {
           <Card>
             <CardContent className="p-4 flex items-center justify-between">
               <div>
-                <div className="text-xs font-medium text-slate-500">Alert Engine</div>
-                <div className="text-2xl font-bold text-slate-800 mt-1">Active</div>
-                <div className="text-[11px] text-slate-400 mt-0.5">3-tier escalation ladder enabled</div>
+                <div className="text-xs font-medium text-slate-500">Open Compliance Alerts</div>
+                <div className="text-2xl font-bold text-slate-800 mt-1">
+                  {loadingData || !alertSummary ? '—' : alertSummary.total_open}
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5">
+                  {alertSummary ? (
+                    <span className="flex items-center gap-1">
+                      <span className="text-red-600 font-semibold">{alertSummary.by_severity['CRITICAL'] || 0} Crit</span>
+                      <span>•</span>
+                      <span className="text-amber-600 font-semibold">{alertSummary.by_severity['HIGH'] || 0} High</span>
+                      <span>•</span>
+                      <span className="text-blue-600 font-semibold">{alertSummary.by_severity['MEDIUM'] || 0} Med</span>
+                    </span>
+                  ) : (
+                    '3-tier escalation ladder active'
+                  )}
+                </div>
               </div>
-              <div className="p-2.5 rounded-lg bg-amber-50 text-amber-700">
+              <a
+                href="/alerts"
+                className="p-2.5 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
+                title="View All Alerts"
+              >
                 <AlertTriangle className="w-5 h-5" />
-              </div>
+              </a>
             </CardContent>
           </Card>
         </div>

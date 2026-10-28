@@ -98,3 +98,18 @@ def calculate_sla_status(
         "ageing_bucket": ageing_bucket,
         "evaluated_at": now.isoformat()
     }
+
+
+class ClockService:
+    @staticmethod
+    def get_now() -> datetime:
+        return get_system_time()
+
+    @staticmethod
+    def advance(hours: float) -> datetime:
+        return advance_clock(hours)
+
+    @staticmethod
+    def reset() -> datetime:
+        return reset_clock()
+

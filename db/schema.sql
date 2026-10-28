@@ -5,6 +5,9 @@
 
 -- Drop existing tables and types if re-running
 DROP TABLE IF EXISTS audit_log CASCADE;
+DROP TABLE IF EXISTS scheduler_runs CASCADE;
+DROP TABLE IF EXISTS email_outbox CASCADE;
+DROP TABLE IF EXISTS escalation_history CASCADE;
 DROP TABLE IF EXISTS case_summaries CASCADE;
 DROP TABLE IF EXISTS notifications CASCADE;
 DROP TABLE IF EXISTS application_communications CASCADE;
@@ -122,6 +125,7 @@ CREATE TYPE alert_severity_enum AS ENUM (
 CREATE TYPE alert_status_enum AS ENUM (
     'ACTIVE',
     'ACKNOWLEDGED',
+    'SNOOZED',
     'RESOLVED',
     'ESCALATED'
 );
@@ -413,6 +417,27 @@ CREATE TABLE alerts (
     escalated_at TIMESTAMP WITH TIME ZONE,
     resolved_at TIMESTAMP WITH TIME ZONE,
     
+    snoozed_until TIMESTAMP WITH TIME ZONE,
+    snooze_count INT DEFAULT 0,
+    snooze_reason TEXT,
+    acknowledged_at TIMESTAMP WITH TIME ZONE,
+    acknowledged_by INT REFERENCES users(id) ON DELETE SET NULL,
+    acknowledgement_remarks TEXT,
+    resolved_by INT REFERENCES users(id) ON DELETE SET NULL,
+    resolution_remarks TEXT,
+    
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE escalation_history (
+    id SERIAL PRIMARY KEY,
+    alert_id INT NOT NULL REFERENCES alerts(id) ON DELETE CASCADE,
+    from_tier INT NOT NULL,
+    to_tier INT NOT NULL,
+    target_role VARCHAR(50) NOT NULL,
+    recipient_user_id INT REFERENCES users(id) ON DELETE SET NULL,
+    reason TEXT NOT NULL,
+    escalated_by INT REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -426,6 +451,37 @@ CREATE TABLE notifications (
     is_read BOOLEAN DEFAULT FALSE,
     read_at TIMESTAMP WITH TIME ZONE,
     sent_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE email_outbox (
+    id SERIAL PRIMARY KEY,
+    recipient_email VARCHAR(150) NOT NULL,
+    recipient_user_id INT REFERENCES users(id) ON DELETE SET NULL,
+    subject VARCHAR(255) NOT NULL,
+    body TEXT NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'QUEUED',   -- 'QUEUED', 'SENT', 'FAILED', 'SUPPRESSED'
+    template_code VARCHAR(50),
+    entity_type VARCHAR(50),
+    entity_id INT,
+    attempts INT DEFAULT 0,
+    error_message TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    sent_at TIMESTAMP WITH TIME ZONE,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE scheduler_runs (
+    id SERIAL PRIMARY KEY,
+    started_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    finished_at TIMESTAMP WITH TIME ZONE,
+    duration_ms INT,
+    rules_evaluated INT DEFAULT 0,
+    alerts_created INT DEFAULT 0,
+    alerts_upgraded INT DEFAULT 0,
+    alerts_resolved INT DEFAULT 0,
+    status VARCHAR(20) DEFAULT 'SUCCESS',
+    triggered_by VARCHAR(50) DEFAULT 'SCHEDULER',
+    details JSONB DEFAULT '{}'::jsonb
 );
 
 -- ==============================================================================

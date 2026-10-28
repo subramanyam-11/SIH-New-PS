@@ -111,6 +111,44 @@ CLOCK_RES=$(curl -s -X POST "$BACKEND_URL/api/v1/demo/advance-clock" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -d '{"hours": 24.0}')
 echo "$CLOCK_RES" | grep -q '"advanced_hours":24' && echo "PASSED" || (echo "FAILED: $CLOCK_RES" && exit 1)
+
+# === PHASE 4 SMOKE CHECKS (ALERT ENGINE, SCHEDULER, ESCALATION, NOTIFICATIONS, OUTBOX) ===
+echo -n "8. Checking POST /api/v1/alerts/run-now (Scheduler Manual Trigger) ... "
+RUN_NOW_RES=$(curl -s -X POST "$BACKEND_URL/api/v1/alerts/run-now" \
+  -H "Authorization: Bearer $ADMIN_TOKEN")
+echo "$RUN_NOW_RES" | grep -q '"status":"SUCCESS"' && echo "PASSED (Evaluated $(echo "$RUN_NOW_RES" | python3 -c "import sys, json; print(json.load(sys.stdin).get('rules_evaluated', 0))") rules)" || (echo "FAILED: $RUN_NOW_RES" && exit 1)
+
+echo -n "9. Checking GET /api/v1/alerts/summary (Real Database Counts) ... "
+SUMMARY_RES=$(curl -s "$BACKEND_URL/api/v1/alerts/summary" \
+  -H "Authorization: Bearer $ADMIN_TOKEN")
+echo "$SUMMARY_RES" | grep -q 'total_open' && echo "PASSED (Total Open: $(echo "$SUMMARY_RES" | python3 -c "import sys, json; print(json.load(sys.stdin).get('total_open', 0))"))" || (echo "FAILED: $SUMMARY_RES" && exit 1)
+
+echo -n "10. Checking GET /api/v1/alerts and Acknowledging an Alert ... "
+ALERTS_LIST=$(curl -s "$BACKEND_URL/api/v1/alerts?limit=1" \
+  -H "Authorization: Bearer $ADMIN_TOKEN")
+TARGET_ALERT_ID=$(echo "$ALERTS_LIST" | python3 -c "import sys, json; d=json.load(sys.stdin); print(d[0]['id'] if d else '')")
+if [ -n "$TARGET_ALERT_ID" ]; then
+  ACK_RES=$(curl -s -X POST "$BACKEND_URL/api/v1/alerts/$TARGET_ALERT_ID/acknowledge" \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $ADMIN_TOKEN" \
+    -d '{"remarks": "Smoke test acknowledgement"}')
+  echo "$ACK_RES" | grep -q '"status":"ACKNOWLEDGED"' && echo "PASSED (Alert #$TARGET_ALERT_ID Acknowledged)" || (echo "FAILED: $ACK_RES" && exit 1)
+else
+  echo "SKIPPED (No alerts found)"
+fi
+
+echo -n "11. Checking GET /api/v1/escalation/matrix (5 Regional Hierarchies) ... "
+MATRIX_RES=$(curl -s "$BACKEND_URL/api/v1/escalation/matrix" \
+  -H "Authorization: Bearer $ADMIN_TOKEN")
+echo "$MATRIX_RES" | grep -q 'Northern Regional Office' && echo "PASSED" || (echo "FAILED: $MATRIX_RES" && exit 1)
+
+echo -n "12. Checking GET /api/v1/notifications & GET /api/v1/outbox ... "
+NOTIFS_RES=$(curl -s "$BACKEND_URL/api/v1/notifications" \
+  -H "Authorization: Bearer $ADMIN_TOKEN")
+OUTBOX_RES=$(curl -s "$BACKEND_URL/api/v1/outbox" \
+  -H "Authorization: Bearer $ADMIN_TOKEN")
+echo "$NOTIFS_RES" | grep -q 'unread_count' && echo "$OUTBOX_RES" | grep -q 'recipient_email' && echo "PASSED" || (echo "FAILED" && exit 1)
+
 # Reset clock
 curl -s -X POST "$BACKEND_URL/api/v1/demo/reset-clock" -H "Authorization: Bearer $ADMIN_TOKEN" > /dev/null
 
@@ -120,4 +158,4 @@ if [ $SERVER_STARTED_BY_SCRIPT -eq 1 ]; then
   kill $UVICORN_PID || true
 fi
 
-echo "=== ALL PHASE 3 SMOKE CHECKS PASSED SUCCESSFULLY ==="
+echo "=== ALL PHASE 1-4 SMOKE CHECKS PASSED SUCCESSFULLY ==="

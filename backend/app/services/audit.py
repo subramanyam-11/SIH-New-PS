@@ -29,3 +29,28 @@ def log_audit_event(
     db.commit()
     db.refresh(audit_entry)
     return audit_entry
+
+
+class AuditService:
+    @staticmethod
+    def log(
+        db: Session,
+        table_name: str,
+        record_id: int,
+        action: str,
+        actor_id: Optional[int] = None,
+        old_values: Optional[Dict[str, Any]] = None,
+        new_values: Optional[Dict[str, Any]] = None,
+        ip_address: Optional[str] = None
+    ) -> AuditLog:
+        return log_audit_event(
+            db=db,
+            table_name=table_name,
+            record_id=record_id,
+            action=action,
+            actor_id=actor_id,
+            old_values=old_values,
+            new_values=new_values,
+            ip_address=ip_address,
+        )
+

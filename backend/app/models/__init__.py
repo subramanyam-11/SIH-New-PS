@@ -89,6 +89,7 @@ class AlertSeverityEnum(str, enum.Enum):
 class AlertStatusEnum(str, enum.Enum):
     ACTIVE = "ACTIVE"
     ACKNOWLEDGED = "ACKNOWLEDGED"
+    SNOOZED = "SNOOZED"
     RESOLVED = "RESOLVED"
     ESCALATED = "ESCALATED"
 
@@ -412,7 +413,47 @@ class Alert(Base):
     escalation_tier = Column(Integer, default=1)
     escalated_at = Column(DateTime(timezone=True), nullable=True)
     resolved_at = Column(DateTime(timezone=True), nullable=True)
+
+    snoozed_until = Column(DateTime(timezone=True), nullable=True)
+    snooze_count = Column(Integer, default=0, nullable=False)
+    snooze_reason = Column(Text, nullable=True)
+    acknowledged_at = Column(DateTime(timezone=True), nullable=True)
+    acknowledged_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    acknowledgement_remarks = Column(Text, nullable=True)
+    resolved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    resolution_remarks = Column(Text, nullable=True)
+
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    # Relationships
+    rule = relationship("AlertRule", backref="alerts")
+    application = relationship("Application", backref="alerts")
+    institution = relationship("Institution", backref="alerts")
+    document = relationship("Document", backref="alerts")
+    undertaking = relationship("Undertaking", backref="alerts")
+    recipient_user = relationship("User", foreign_keys=[recipient_user_id], backref="assigned_alerts")
+    acknowledged_user = relationship("User", foreign_keys=[acknowledged_by])
+    resolved_user = relationship("User", foreign_keys=[resolved_by])
+    escalation_history = relationship("EscalationHistory", back_populates="alert", cascade="all, delete-orphan", order_by="desc(EscalationHistory.created_at)")
+    notifications = relationship("Notification", back_populates="alert", cascade="all, delete-orphan")
+
+
+class EscalationHistory(Base):
+    __tablename__ = "escalation_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    alert_id = Column(Integer, ForeignKey("alerts.id", ondelete="CASCADE"), nullable=False, index=True)
+    from_tier = Column(Integer, nullable=False)
+    to_tier = Column(Integer, nullable=False)
+    target_role = Column(String(50), nullable=False)
+    recipient_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    reason = Column(Text, nullable=False)
+    escalated_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    alert = relationship("Alert", back_populates="escalation_history")
+    recipient_user = relationship("User", foreign_keys=[recipient_user_id])
+    escalated_by_user = relationship("User", foreign_keys=[escalated_by])
 
 
 class Notification(Base):
@@ -427,6 +468,46 @@ class Notification(Base):
     is_read = Column(Boolean, default=False, index=True)
     read_at = Column(DateTime(timezone=True), nullable=True)
     sent_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    alert = relationship("Alert", back_populates="notifications")
+    recipient = relationship("User", backref="notifications")
+
+
+class EmailOutbox(Base):
+    __tablename__ = "email_outbox"
+
+    id = Column(Integer, primary_key=True, index=True)
+    recipient_email = Column(String(150), nullable=False)
+    recipient_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    subject = Column(String(255), nullable=False)
+    body = Column(Text, nullable=False)
+    status = Column(String(20), default="QUEUED", nullable=False, index=True)  # QUEUED, SENT, FAILED, SUPPRESSED
+    template_code = Column(String(50), nullable=True)
+    entity_type = Column(String(50), nullable=True)
+    entity_id = Column(Integer, nullable=True)
+    attempts = Column(Integer, default=0, nullable=False)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    sent_at = Column(DateTime(timezone=True), nullable=True)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    recipient = relationship("User", foreign_keys=[recipient_user_id])
+
+
+class SchedulerRun(Base):
+    __tablename__ = "scheduler_runs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    started_at = Column(DateTime(timezone=True), default=datetime.utcnow, index=True)
+    finished_at = Column(DateTime(timezone=True), nullable=True)
+    duration_ms = Column(Integer, nullable=True)
+    rules_evaluated = Column(Integer, default=0, nullable=False)
+    alerts_created = Column(Integer, default=0, nullable=False)
+    alerts_upgraded = Column(Integer, default=0, nullable=False)
+    alerts_resolved = Column(Integer, default=0, nullable=False)
+    status = Column(String(20), default="SUCCESS", nullable=False)
+    triggered_by = Column(String(50), default="SCHEDULER", nullable=False)
+    details = Column(JSONB, default=dict, nullable=False)
 
 
 class CaseSummary(Base):

@@ -19,6 +19,7 @@ from app.schemas import (
 from app.services.clock import get_system_time, calculate_sla_status, advance_clock, reset_clock
 from app.services.workflow_engine import WorkflowEngine, get_config_val
 from app.services.audit import log_audit_event
+from app.services.scheduler import run_checks_now
 
 router = APIRouter(prefix="", tags=["Applications"])
 
@@ -445,11 +446,14 @@ def advance_system_clock(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only Admins can advance system clock")
 
     new_time = advance_clock(payload.hours)
+    # Automatically re-evaluate alert rules and escalation ladder
+    eval_res = run_checks_now(triggered_by="CLOCK_ADVANCE")
     return {
         "status": "success",
         "advanced_hours": payload.hours,
         "simulated_time": new_time.isoformat(),
-        "message": f"System clock advanced by {payload.hours} hours."
+        "evaluation": eval_res,
+        "message": f"System clock advanced by {payload.hours} hours. Alert rules re-evaluated."
     }
 
 
@@ -461,4 +465,10 @@ def reset_system_clock(
     if not settings.DEMO_MODE or current_user.role.code != UserRoleEnum.ADMIN:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Unauthorized")
     curr = reset_clock()
-    return {"status": "success", "simulated_time": curr.isoformat(), "message": "Clock reset to real-time UTC."}
+    eval_res = run_checks_now(triggered_by="CLOCK_RESET")
+    return {
+        "status": "success",
+        "simulated_time": curr.isoformat(),
+        "evaluation": eval_res,
+        "message": "Clock reset to real-time UTC. Alert rules re-evaluated."
+    }
