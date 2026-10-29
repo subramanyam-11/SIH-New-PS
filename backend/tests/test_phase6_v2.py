@@ -364,8 +364,9 @@ def test_alert_rules_day_basis_setting():
     """Alert rules specify either WORKING or CALENDAR day_basis."""
     db: Session = SessionLocal()
     try:
+        # Phase 7 expanded alert rules from 8 to 12 (11 active + 1 advisory RULE_RISK_HIGH)
         rules = db.query(AlertRule).all()
-        assert len(rules) == 8  # 8 Active rules
+        assert len(rules) == 12
         for r in rules:
             assert r.day_basis in ["WORKING", "CALENDAR"]
         

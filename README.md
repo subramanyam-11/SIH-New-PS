@@ -94,17 +94,18 @@ All planning specifications and Phase 2 reports are available under [`docs/`](fi
 13. **[11. Phase 4 Alerts & Watchers Report](file:///Users/subramanyam/Sih%20new/docs/11_phase4_alerts_report.md)** - Detailed report on alert rules engine, APScheduler, 3-tier escalation ladder, notifications, and outbox queue.
 14. **[12. Phase 5 Compliance & Reports Report](file:///Users/subramanyam/Sih%20new/docs/12_phase5_screens_report.md)** - Interactive screens for EVC, Undertakings, Documents, and 5 statutory reports.
 15. **[13. Phase 6 Build Plan v2 Alignment Report](file:///Users/subramanyam/Sih%20new/docs/13_phase6_v2_alignment_report.md)** - Fair Pendency Clock, Working-Day Calendar, CLOSED state, Overdue cases report, and new roles.
+16. **[14. Phase 7 Innovation Layer Report](file:///Users/subramanyam/Sih%20new/docs/14_phase7_innovation_report.md)** - Delay Risk Score, Bottleneck Finder, AI Case Summary, What-If Planner, and Smart Alert Ranking.
 
 ---
 
 ## 5. Running Tests and Verification
 
 ```bash
-# Run backend test suite (55 unit, integration, RBAC, workflow engine, alert watcher, and Phase 6 tests)
+# Run backend test suite (73 unit, integration, RBAC, workflow engine, alert watcher, Phase 6, and Phase 7 innovation tests)
 make test
 # Or: cd backend && .venv/bin/pytest -v
 
-# Run automated end-to-end smoke test suite (22 comprehensive checks covering Phases 1 through 6)
+# Run automated end-to-end smoke test suite (28 comprehensive checks covering Phases 1 through 7)
 make smoke
 # Or: ./scripts/smoke_test.sh
 
@@ -263,10 +264,73 @@ SMTP_PASSWORD=secret
 
 ---
 
-## 8. Ready for Phase 6 (Innovation Layer)
+## 8. Phase 7 Innovation Layer (Build Plan v2 Sections 9 & 10)
 
-Phase 5 operational screens, reports, and institution portal are fully verified and operating. Next in Phase 6:
-- Delay Risk Score engine and predictive bottleneck detection
-- Explainable Alerts & AI Case Summary upgrades
-- EVC Inspection Tour Optimizer (Multi-institution regional routing)
+Phase 7 introduces explainable intelligent decision support for AICTE officers, regional directors, and council leadership. Every smart feature strictly adheres to Section 10 human oversight principles:
+- Carries the persistent **"Decision support only"** badge.
+- Provides transparent plain-language explanations for all calculations.
+- **NEVER** moves, approves, rejects, reverts, or closes an application automatically.
+
+### Key Innovation Features
+
+1. **Explainable Delay Risk Score**:
+   - Computes a transparent 0-100 score from 4 database-backed factors:
+     - **Age against time limit** (40 pts): AICTE-held working days in current stage divided by SLA, capped at 150%. Paused institution time is strictly excluded.
+     - **Past returns** (25 pts): `revert_count` divided by revert cap (default 2).
+     - **Officer workload** (20 pts): Open active cases of assigned officer divided by capacity (default 12).
+     - **Current stage baseline** (15 pts): Multiplier reflecting inherent logistical complexity (higher for EVC / SAC / SHC).
+   - Classified into Low (<40), Medium (40-70), and High (>70) risk bands.
+   - Fully inspectable breakdown card on `/applications/[id]` and Admin weights configuration tab on `/settings/rules`.
+
+2. **Bottleneck Finder (`/bottlenecks`)**:
+   - Aggregates by stage, region, and officer queue: open cases, average AICTE-held working days, overdue breach rate, and percentage share of total system delay.
+   - Separates institutional response time so desk officers are never unfairly penalized.
+   - Region-by-stage interactive heat grid and low-sample guards (<3 cases).
+
+3. **Structured AI Case Summary (`/applications/[id]`)**:
+   - Structured summary components: case snapshot, timeline highlights, pending items, upcoming deadlines, top delay risk drivers, and suggested next steps for the desk officer.
+   - Offline deterministic template summary by default.
+   - Optional provider switch in `.env` (Gemini API) to rewrite structured facts in natural prose.
+   - SHA-256 payload caching in `case_summaries` table with manual "Regenerate Summary" action.
+   - **Strict Privacy Rule**: Transmits only sanitized metadata (stage, dates, counts, deficiency tags, rule codes). Never transmits uploaded file contents or personal data.
+
+4. **What-If Capacity Planner (`/planner`)**:
+   - Read-only simulation modeling:
+     - (a) Extra EVC visits completed per week (0 to 10)
+     - (b) Extra staffing capacity units (0 to 5)
+     - Horizon in weeks (1 to 8)
+   - Computes counterfactual backlog depletion, queue wait day reductions, cases moving forward, and avoided overdue inspection alerts.
+   - **Strict Invariance**: Never alters real database records.
+
+5. **Smart Alert Ranking & Daily Digests (`/alerts`)**:
+   - Multi-factor priority score (0-100) combining severity (35%), days overdue (30%), escalation tier (20%), and regulatory impact (15%).
+   - Alerts list defaults to explainable priority order with a dedicated "why ranked here" rationale line.
+   - "Needs Attention Today" top-10 card on the main dashboard (`/`).
+   - Admin action to draft consolidated daily digests in the email outbox (`/admin/outbox`).
+
+---
+
+## 9. Optional LLM Provider Configuration
+
+In `.env`:
+```ini
+# LLM Provider Configuration (Phase 7 Innovation)
+# Default is 'none' (deterministic offline template summary)
+LLM_PROVIDER=none
+# To enable Gemini API summarization:
+# LLM_PROVIDER=gemini
+# LLM_API_KEY=your_gemini_api_key_here
+# LLM_TIMEOUT_SECONDS=10
+```
+
+*Fallback Guarantee*: If `LLM_PROVIDER=none`, `LLM_API_KEY` is missing, or an external API call times out or fails, the system automatically falls back to the deterministic offline template summary without throwing errors. The user interface explicitly labels each summary as either *"Template summary"* or *"AI-assisted summary"*.
+
+---
+
+## 10. Next Steps: Phase 8 (Security Hardening & Final Deliverables)
+- Append-only immutable audit log export & signature verification
+- Anti-virus / MIME file upload scanner verification
+- Configurable statutory record retention rules
+- Mock AICTE National Portal adapter
+- End-to-end architecture diagram & test verification report
 

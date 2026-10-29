@@ -77,6 +77,7 @@ def enrich_app_out(app: Application, db: Optional[Session] = None, thresholds: O
         escalation_required=app.escalation_required,
         escalation_reason=app.escalation_reason,
         delay_risk_score=app.delay_risk_score,
+        risk_band=app.risk_band or "LOW",
         approval_letter_ref=app.approval_letter_ref,
         case_holder=app.case_holder,
         closed_at=app.closed_at,
@@ -99,6 +100,7 @@ def list_applications(
     institution_id: Optional[int] = Query(None),
     officer_id: Optional[int] = Query(None),
     status_filter: Optional[str] = Query(None, alias="status"),
+    risk_band: Optional[str] = Query(None),
     case_holder: Optional[str] = Query(None),
     ageing_bucket: Optional[str] = Query(None),
     stage_path_id: Optional[int] = Query(None),
@@ -145,6 +147,8 @@ def list_applications(
         query = query.filter(Application.assigned_officer_id == officer_id)
     if status_filter:
         query = query.filter(Application.status == status_filter.upper())
+    if risk_band:
+        query = query.filter(Application.risk_band == risk_band.upper())
     if case_holder:
         query = query.filter(Application.case_holder == case_holder.upper())
     if stage_path_id:
@@ -242,6 +246,14 @@ def get_application_detail(
             key_findings=app.case_summary.key_findings or [],
             compliance_flags=app.case_summary.compliance_flags or [],
             risk_assessment=app.case_summary.risk_assessment,
+            source_label=getattr(app.case_summary, "source_label", "Template summary") or "Template summary",
+            input_hash=getattr(app.case_summary, "input_hash", None),
+            timeline_highlights=getattr(app.case_summary, "timeline_highlights", []) or [],
+            pending_items=getattr(app.case_summary, "pending_items", []) or [],
+            upcoming_deadlines=getattr(app.case_summary, "upcoming_deadlines", []) or [],
+            suggested_next_steps=getattr(app.case_summary, "suggested_next_steps", []) or [],
+            top_risk_factors=getattr(app.case_summary, "top_risk_factors", []) or [],
+            risk_score_at_generation=getattr(app.case_summary, "risk_score_at_generation", None),
             generated_by=app.case_summary.generated_by,
             last_generated_at=app.case_summary.last_generated_at
         )
@@ -543,11 +555,28 @@ def get_case_summary(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Returns the executive case brief synthesized by deterministic template service."""
-    summary = db.query(CaseSummary).filter(CaseSummary.application_id == id).first()
-    if not summary:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Summary not found")
-    return summary
+    """Returns the structured executive case brief with SHA-256 caching and fallback."""
+    from app.services.case_summary_service import CaseSummaryService
+    try:
+        summary = CaseSummaryService.get_or_generate_summary(db=db, application_id=id, force_regenerate=False)
+        return summary
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+@router.post("/applications/{id}/summary/regenerate", response_model=CaseSummaryOut)
+def regenerate_case_summary(
+    id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Forces fresh summary synthesis bypassing cached input hash."""
+    from app.services.case_summary_service import CaseSummaryService
+    try:
+        summary = CaseSummaryService.get_or_generate_summary(db=db, application_id=id, force_regenerate=True)
+        return summary
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 
 @router.get("/config/deficiency-tags", response_model=List[DeficiencyTagOut])

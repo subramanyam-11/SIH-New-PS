@@ -226,12 +226,72 @@ class AlertEngine:
                             "is_sample_reference": True,
                         }
 
+                # RULE 9: EVC Visit Overdue
+                elif rule.code == "RULE_EVC_VISIT_OVERDUE":
+                    threshold = float(cond.get("value", 0.0))
+                    # Check for visits that were scheduled on or before now_date with no report submitted
+                    scheduled_visit = db.query(EvcVisit).filter(
+                        EvcVisit.application_id == app.id,
+                        EvcVisit.status == EvcStatusEnum.SCHEDULED,
+                    ).order_by(EvcVisit.scheduled_date.asc()).first()
+                    if scheduled_visit and scheduled_visit.scheduled_date and scheduled_visit.scheduled_date < now_date:
+                        working_days_overdue = WorkingDayService.working_days_between(
+                            db, scheduled_visit.scheduled_date, now_date, app.region_id
+                        )
+                        if working_days_overdue > threshold:
+                            results[app.id] = {
+                                "rule_code": rule.code,
+                                "entity_type": "APPLICATION",
+                                "entity_id": app.id,
+                                "entity_label": app.application_number,
+                                "institution_id": app.institution_id,
+                                "institution_name": app.institution.name if app.institution else "",
+                                "region_id": app.region_id,
+                                "actual_value": f"{working_days_overdue} working days overdue without report",
+                                "threshold_value": f"> {threshold} working days past visit date",
+                                "why_this_fired": (
+                                    f"EVC visit for {app.application_number} was scheduled for {scheduled_visit.scheduled_date.isoformat()}, "
+                                    f"which passed {working_days_overdue} working days ago with no inspection report received."
+                                ),
+                                "reference_clause": rule.aph_reference_clause or "APH 2026 Chapter II Clause 2.7",
+                                "day_basis": "WORKING",
+                                "case_holder": app.case_holder,
+                                "is_sample_reference": True,
+                            }
+
+                # RULE 10 (Advisory): High Delay Risk Early Warning
+                elif rule.code == "RULE_RISK_HIGH":
+                    # Early-warning notice that fires when risk score reaches HIGH band before overdue
+                    from app.services.risk_score_service import RiskScoreService
+                    risk_info = RiskScoreService.compute_score(db, app)
+                    if risk_info.get("band") == "HIGH" and days_remaining > 0:
+                        results[app.id] = {
+                            "rule_code": rule.code,
+                            "entity_type": "APPLICATION",
+                            "entity_id": app.id,
+                            "entity_label": app.application_number,
+                            "institution_id": app.institution_id,
+                            "institution_name": app.institution.name if app.institution else "",
+                            "region_id": app.region_id,
+                            "actual_value": f"Risk Score {risk_info['score']} (HIGH)",
+                            "threshold_value": "Risk Band == HIGH (Advisory before SLA breach)",
+                            "why_this_fired": (
+                                f"Early Warning: Application {app.application_number} has accumulated high delay risk points "
+                                f"({risk_info['score']}/100) while {round(days_remaining, 1)} days remain before SLA breach."
+                            ),
+                            "reference_clause": rule.aph_reference_clause or "APH 2026 Chapter II Clause 2.1 Advisory",
+                            "day_basis": "WORKING",
+                            "case_holder": app.case_holder,
+                            "is_sample_reference": True,
+                        }
+
         # -------------------------------------------------------------------------
         # DOCUMENT RULES
         # -------------------------------------------------------------------------
         elif rule.entity_type == "DOCUMENT":
+            # For general expiry and critical rules, evaluate non-superseded documents
             active_docs = db.query(Document).filter(
-                Document.status.notin_([DocumentStatusEnum.SUPERSEDED, DocumentStatusEnum.RENEWAL_SUBMITTED])
+                Document.status != DocumentStatusEnum.SUPERSEDED
             ).all()
 
             for doc in active_docs:
@@ -243,7 +303,7 @@ class AlertEngine:
                 # RULE 4: Lease 90D Warning
                 if rule.code == "RULE_LEASE_90D":
                     threshold = int(cond.get("value", 90))
-                    if 30 < days_until_expiry <= threshold:
+                    if 30 < days_until_expiry <= threshold and doc.status not in [DocumentStatusEnum.RENEWAL_SUBMITTED]:
                         results[doc.id] = {
                             "rule_code": rule.code,
                             "entity_type": "DOCUMENT",
@@ -264,7 +324,7 @@ class AlertEngine:
                 # RULE 5: Lease 30D Critical
                 elif rule.code == "RULE_LEASE_30D":
                     threshold = int(cond.get("value", 30))
-                    if 0 < days_until_expiry <= threshold:
+                    if 0 < days_until_expiry <= threshold and doc.status not in [DocumentStatusEnum.RENEWAL_SUBMITTED]:
                         results[doc.id] = {
                             "rule_code": rule.code,
                             "entity_type": "DOCUMENT",
@@ -282,9 +342,14 @@ class AlertEngine:
                             "is_sample_reference": True,
                         }
 
-                # RULE 6: Fire NOC or Document Expired
+                # RULE 6: Fire NOC Expired
                 elif rule.code == "RULE_FIRE_NOC_EXPIRED":
-                    if days_until_expiry <= 0:
+                    is_fire = (
+                        doc.document_type == DocumentTypeEnum.FIRE_SAFETY_NOC
+                        or "FIRE" in str(getattr(doc, "document_type", "")).upper()
+                        or "FIRE" in (doc.title or "").upper()
+                    )
+                    if is_fire and days_until_expiry <= 0:
                         days_expired = abs(days_until_expiry)
                         results[doc.id] = {
                             "rule_code": rule.code,
@@ -298,6 +363,37 @@ class AlertEngine:
                             "threshold_value": "Expired (<= 0 days)",
                             "why_this_fired": f"Statutory compliance failure: Document '{doc.title}' expired on {doc.expiry_date.isoformat()} and has not been renewed (CALENDAR days basis).{nw_note}",
                             "reference_clause": rule.aph_reference_clause or "APH 2026 Chapter I Clause 1.4(g)",
+                            "day_basis": "CALENDAR",
+                            "non_working_day_note": nw_note.strip() if is_non_working else None,
+                            "is_sample_reference": True,
+                        }
+
+                # RULE 11: General Prescribed Document Expired (Non-Fire NOC: Lease, FDR, etc.)
+                elif rule.code == "RULE_DOCUMENT_EXPIRED":
+                    is_fire = (
+                        doc.document_type == DocumentTypeEnum.FIRE_SAFETY_NOC
+                        or "FIRE" in str(getattr(doc, "document_type", "")).upper()
+                        or "FIRE" in (doc.title or "").upper()
+                    )
+                    # Avoid duplicate alerts with RULE_FIRE_NOC_EXPIRED
+                    if not is_fire and days_until_expiry <= 0:
+                        # Auto-resolves only after an officer verifies a renewal (status becomes SUPERSEDED)
+                        days_expired = abs(days_until_expiry)
+                        results[doc.id] = {
+                            "rule_code": rule.code,
+                            "entity_type": "DOCUMENT",
+                            "entity_id": doc.id,
+                            "entity_label": f"{doc.title} ({doc.document_number})",
+                            "institution_id": doc.institution_id,
+                            "institution_name": doc.institution.name if doc.institution else "",
+                            "region_id": doc.institution.region_id if doc.institution else 1,
+                            "actual_value": f"Expired {days_expired} days ago ({doc.expiry_date.isoformat()})",
+                            "threshold_value": "Expired (<= 0 days)",
+                            "why_this_fired": (
+                                f"Prescribed document '{doc.title}' expired on {doc.expiry_date.isoformat()} "
+                                f"without a verified renewal on record (CALENDAR days basis).{nw_note}"
+                            ),
+                            "reference_clause": rule.aph_reference_clause or "APH 2026 Chapter I Clause 1.4(h)",
                             "day_basis": "CALENDAR",
                             "non_working_day_note": nw_note.strip() if is_non_working else None,
                             "is_sample_reference": True,
@@ -320,8 +416,7 @@ class AlertEngine:
                 # RULE 7: Undertaking Due 15D
                 if rule.code == "RULE_UNDERTAKING_DUE_15D":
                     threshold = int(cond.get("value", 15))
-                    if days_until_due <= threshold:
-                        actual_str = f"{days_until_due} days remaining" if days_until_due >= 0 else f"{abs(days_until_due)} days overdue"
+                    if 0 <= days_until_due <= threshold:
                         results[ut.id] = {
                             "rule_code": rule.code,
                             "entity_type": "UNDERTAKING",
@@ -330,10 +425,32 @@ class AlertEngine:
                             "institution_id": ut.institution_id,
                             "institution_name": ut.institution.name if ut.institution else "",
                             "region_id": ut.institution.region_id if ut.institution else 1,
-                            "actual_value": actual_str,
+                            "actual_value": f"{days_until_due} days remaining",
                             "threshold_value": f"<= {threshold} days",
                             "why_this_fired": f"Undertaking condition '{ut.condition_title}' is due in {days_until_due} days ({ut.due_date.isoformat()}) on CALENDAR days basis.{nw_note}",
                             "reference_clause": rule.aph_reference_clause or "APH 2026 Chapter III Clause 3.2",
+                            "day_basis": "CALENDAR",
+                            "non_working_day_note": nw_note.strip() if is_non_working else None,
+                            "is_sample_reference": True,
+                        }
+
+                # RULE 12: Undertaking Overdue
+                elif rule.code == "RULE_UNDERTAKING_OVERDUE":
+                    threshold = int(cond.get("value", 0))
+                    if days_until_due <= -threshold:
+                        days_overdue = abs(days_until_due)
+                        results[ut.id] = {
+                            "rule_code": rule.code,
+                            "entity_type": "UNDERTAKING",
+                            "entity_id": ut.id,
+                            "entity_label": ut.condition_title,
+                            "institution_id": ut.institution_id,
+                            "institution_name": ut.institution.name if ut.institution else "",
+                            "region_id": ut.institution.region_id if ut.institution else 1,
+                            "actual_value": f"{days_overdue} days overdue",
+                            "threshold_value": f">= {threshold} days overdue",
+                            "why_this_fired": f"Conditional undertaking condition '{ut.condition_title}' is {days_overdue} days overdue ({ut.due_date.isoformat()}) and has not been verified (CALENDAR days basis).{nw_note}",
+                            "reference_clause": rule.aph_reference_clause or "APH 2026 Chapter III Clause 3.4",
                             "day_basis": "CALENDAR",
                             "non_working_day_note": nw_note.strip() if is_non_working else None,
                             "is_sample_reference": True,

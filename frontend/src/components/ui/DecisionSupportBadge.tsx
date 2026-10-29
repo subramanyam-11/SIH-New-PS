@@ -7,12 +7,14 @@ interface DecisionSupportBadgeProps {
   className?: string;
   size?: 'xs' | 'sm' | 'md';
   customTooltip?: string;
+  label?: string;
 }
 
 export function DecisionSupportBadge({
   className = '',
   size = 'sm',
-  customTooltip
+  customTooltip,
+  label = 'Decision support only'
 }: DecisionSupportBadgeProps) {
   const [showTooltip, setShowTooltip] = useState(false);
 
@@ -39,10 +41,10 @@ export function DecisionSupportBadge({
         onClick={() => setShowTooltip(!showTooltip)}
         className={`inline-flex items-center font-medium rounded-full cursor-help bg-amber-50 text-amber-900 border border-amber-200/80 shadow-xs hover:bg-amber-100 transition-colors ${sizeClasses[size]} ${className}`}
         role="status"
-        aria-label="Decision support only"
+        aria-label={label}
       >
         <Info className={`${iconSizes[size]} text-amber-700 flex-shrink-0`} />
-        <span className="font-semibold tracking-tight">Decision support only</span>
+        <span className="font-semibold tracking-tight">{label}</span>
       </span>
 
       {showTooltip && (

@@ -20,7 +20,8 @@ from app.schemas import (
     AlertOut, AlertDetailOut, AlertAcknowledgeRequest, AlertSnoozeRequest,
     AlertResolveRequest, AlertSummaryOut, NotificationOut, NotificationSummaryOut,
     EmailOutboxOut, EscalationRuleOut, EscalationRuleUpdate, AlertRuleOut,
-    AlertRuleUpdate, EscalationMatrixOut, RegionEscalationItem, SchedulerRunOut
+    AlertRuleUpdate, EscalationMatrixOut, RegionEscalationItem, SchedulerRunOut,
+    NeedsAttentionAlertOut
 )
 from app.services.alert_engine import AlertEngine
 from app.services.escalation_service import EscalationService
@@ -43,6 +44,8 @@ def list_alerts(
     region_id: Optional[int] = None,
     institution_id: Optional[int] = None,
     escalation_tier: Optional[int] = None,
+    sort_by: str = Query("priority", pattern="^(priority|created_at|severity|escalation_tier)$"),
+    sort_order: str = Query("desc", pattern="^(asc|desc)$"),
     limit: int = 100,
     offset: int = 0,
     db: Session = Depends(get_db),
@@ -50,6 +53,7 @@ def list_alerts(
 ):
     """
     List alerts filtered by criteria and strictly scoped by user role & regional jurisdiction.
+    Defaults to explainable priority sorting.
     """
     query = db.query(Alert)
 
@@ -83,13 +87,35 @@ def list_alerts(
     if escalation_tier:
         query = query.filter(Alert.escalation_tier == escalation_tier)
 
-    alerts = query.order_by(desc(Alert.created_at)).offset(offset).limit(limit).all()
+    # Sorting
+    if sort_by == "priority":
+        from app.models import AlertPriorityScore
+        query = query.outerjoin(AlertPriorityScore, Alert.id == AlertPriorityScore.alert_id)
+        if sort_order == "desc":
+            query = query.order_by(
+                desc(AlertPriorityScore.priority_score.isnot(None)),
+                desc(AlertPriorityScore.priority_score),
+                desc(Alert.created_at)
+            )
+        else:
+            query = query.order_by(
+                asc(AlertPriorityScore.priority_score),
+                asc(Alert.created_at)
+            )
+    else:
+        sort_col = getattr(Alert, sort_by, Alert.created_at)
+        order_func = desc if sort_order == "desc" else asc
+        query = query.order_by(order_func(sort_col))
+
+    alerts = query.offset(offset).limit(limit).all()
 
     # Hydrate AlertOut schemas
     now = ClockService.get_now()
     output = []
     for a in alerts:
         age_hours = round(max(0.0, (now - normalize_dt(a.created_at)).total_seconds() / 3600.0), 1)
+        p_score = a.priority_score.priority_score if a.priority_score else 0.0
+        p_expl = a.priority_score.explanation if a.priority_score else None
         output.append(AlertOut(
             id=a.id,
             alert_rule_id=a.alert_rule_id,
@@ -125,9 +151,38 @@ def list_alerts(
             resolution_remarks=a.resolution_remarks,
             created_at=a.created_at,
             age_hours=age_hours,
+            priority_score=p_score,
+            priority_explanation=p_expl,
         ))
 
     return output
+
+
+@router.get("/alerts/needs-attention-today", response_model=List[NeedsAttentionAlertOut])
+def get_needs_attention_today(
+    limit: int = Query(10, ge=1, le=50),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Returns top N highest-priority actionable open alerts for the current officer/role.
+    Powers the 'Needs attention today' dashboard card.
+    """
+    from app.services.alert_ranking_service import AlertRankingService
+    return AlertRankingService.get_needs_attention_today(db=db, user=current_user, limit=limit)
+
+
+@router.post("/alerts/daily-digest/generate")
+def generate_daily_digests(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role([UserRoleEnum.ADMIN])),
+):
+    """
+    Triggers generation of consolidated daily digest drafts in the email outbox.
+    """
+    from app.services.alert_ranking_service import AlertRankingService
+    count = AlertRankingService.generate_officer_daily_digests(db)
+    return {"status": "SUCCESS", "digests_created": count}
 
 
 @router.get("/alerts/summary", response_model=AlertSummaryOut)

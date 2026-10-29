@@ -6,7 +6,19 @@ import { AppShell } from '@/components/layout/AppShell';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/Table';
-import { lookupApi, configApi, alertsApi, Institution, Region, StagePath, AlertSummary } from '@/lib/api';
+import {
+  lookupApi,
+  configApi,
+  alertsApi,
+  riskApi,
+  Institution,
+  Region,
+  StagePath,
+  AlertSummary,
+  ApplicationRiskListItem,
+  NeedsAttentionAlert
+} from '@/lib/api';
+import { DecisionSupportBadge } from '@/components/ui/DecisionSupportBadge';
 import {
   ShieldAlert,
   Clock,
@@ -16,7 +28,9 @@ import {
   Building,
   CheckCircle2,
   AlertTriangle,
-  ArrowRight
+  ArrowRight,
+  TrendingUp,
+  ExternalLink
 } from 'lucide-react';
 
 export default function HomePage() {
@@ -25,22 +39,28 @@ export default function HomePage() {
   const [stagePaths, setStagePaths] = useState<StagePath[]>([]);
   const [regions, setRegions] = useState<Region[]>([]);
   const [alertSummary, setAlertSummary] = useState<AlertSummary | null>(null);
+  const [highestRiskCases, setHighestRiskCases] = useState<ApplicationRiskListItem[]>([]);
+  const [needsAttentionAlerts, setNeedsAttentionAlerts] = useState<NeedsAttentionAlert[]>([]);
   const [loadingData, setLoadingData] = useState(true);
 
   useEffect(() => {
     async function loadFoundationData() {
       try {
         setLoadingData(true);
-        const [instRes, pathsRes, regRes, alertSummaryRes] = await Promise.all([
+        const [instRes, pathsRes, regRes, alertSummaryRes, riskRes, attentionRes] = await Promise.all([
           lookupApi.getInstitutions(),
           configApi.getStagePaths(),
           lookupApi.getRegions(),
           alertsApi.getSummary().catch(() => null),
+          riskApi.listApplications({ limit: 5, sort_by: 'score', sort_order: 'desc' }).catch(() => []),
+          alertsApi.getNeedsAttentionToday().catch(() => []),
         ]);
         setInstitutions(instRes);
         setStagePaths(pathsRes);
         setRegions(regRes);
         setAlertSummary(alertSummaryRes);
+        setHighestRiskCases(riskRes || []);
+        setNeedsAttentionAlerts(attentionRes || []);
       } catch (err) {
         console.error('Error fetching foundation data', err);
       } finally {
@@ -160,6 +180,151 @@ export default function HomePage() {
               >
                 <AlertTriangle className="w-5 h-5" />
               </a>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Phase 7 Innovation Layer: Actionable Intelligence Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Card 1: Needs Attention Today (Smart Ranked Top 10) */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4 text-amber-600" />
+                    Needs Attention Today
+                  </CardTitle>
+                  <DecisionSupportBadge label="Smart Ranked" />
+                </div>
+                <CardDescription className="text-xs text-slate-500 mt-0.5">
+                  Top statutory alerts prioritized for your role by multi-factor urgency
+                </CardDescription>
+              </div>
+              <a
+                href="/alerts"
+                className="text-xs font-semibold text-blue-700 hover:text-blue-900 flex items-center gap-0.5"
+              >
+                View all <ArrowRight className="w-3.5 h-3.5" />
+              </a>
+            </CardHeader>
+            <CardContent className="p-0">
+              {loadingData ? (
+                <div className="p-6 text-center text-xs text-slate-400">Loading prioritized alerts...</div>
+              ) : needsAttentionAlerts.length === 0 ? (
+                <div className="p-6 text-center text-xs text-slate-500 flex flex-col items-center">
+                  <CheckCircle2 className="w-6 h-6 text-emerald-500 mb-1.5" />
+                  <p className="font-medium text-slate-700">No urgent alerts requiring action today.</p>
+                  <p className="text-slate-400 text-[11px] mt-0.5">All regulatory deadlines within standard thresholds.</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100 max-h-[340px] overflow-y-auto">
+                  {needsAttentionAlerts.slice(0, 8).map((alert) => (
+                    <div key={alert.alert_id} className="p-3.5 hover:bg-slate-50/80 transition-colors flex items-start justify-between gap-3">
+                      <div className="space-y-1 min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-[11px] px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-900 border border-indigo-200 shrink-0">
+                            P-{Math.round(alert.priority_score)}
+                          </span>
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${
+                            alert.severity === 'CRITICAL' ? 'bg-red-100 text-red-800' :
+                            alert.severity === 'HIGH' ? 'bg-amber-100 text-amber-800' :
+                            'bg-blue-100 text-blue-800'
+                          }`}>
+                            {alert.severity}
+                          </span>
+                          <span className="text-xs font-semibold text-slate-800 truncate">
+                            {alert.rule_name}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-600 font-mono">
+                          {alert.application_number ? alert.application_number : 'Institutional Notice'}
+                          {alert.institution_name && ` • ${alert.institution_name}`}
+                        </p>
+                        {alert.priority_explanation && (
+                          <p className="text-[10px] text-indigo-700 bg-indigo-50/50 rounded px-1.5 py-0.5">
+                            {alert.priority_explanation}
+                          </p>
+                        )}
+                      </div>
+                      <a
+                        href={`/alerts?id=${alert.alert_id}`}
+                        className="text-xs font-medium text-blue-600 hover:text-blue-800 shrink-0 mt-1"
+                        title="Inspect alert"
+                      >
+                        Inspect
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Card 2: Highest Delay Risk Cases */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-1.5">
+                    <TrendingUp className="w-4 h-4 text-rose-600" />
+                    Highest Delay Risk Cases
+                  </CardTitle>
+                  <DecisionSupportBadge label="4-Factor Baseline" />
+                </div>
+                <CardDescription className="text-xs text-slate-500 mt-0.5">
+                  Applications at risk of statutory SLA breach based on age, returns & workload
+                </CardDescription>
+              </div>
+              <a
+                href="/applications"
+                className="text-xs font-semibold text-blue-700 hover:text-blue-900 flex items-center gap-0.5"
+              >
+                All cases <ArrowRight className="w-3.5 h-3.5" />
+              </a>
+            </CardHeader>
+            <CardContent className="p-0">
+              {loadingData ? (
+                <div className="p-6 text-center text-xs text-slate-400">Loading risk scores...</div>
+              ) : highestRiskCases.length === 0 ? (
+                <div className="p-6 text-center text-xs text-slate-500">No active applications currently scored.</div>
+              ) : (
+                <div className="divide-y divide-slate-100 max-h-[340px] overflow-y-auto">
+                  {highestRiskCases.map((item) => (
+                    <div key={item.id} className="p-3.5 hover:bg-slate-50/80 transition-colors flex items-start justify-between gap-3">
+                      <div className="space-y-1 min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase font-mono ${
+                            item.risk_band === 'HIGH' ? 'bg-rose-100 text-rose-800 border border-rose-200' :
+                            item.risk_band === 'MEDIUM' ? 'bg-amber-100 text-amber-800 border border-amber-200' :
+                            'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                          }`}>
+                            Score {Math.round(item.delay_risk_score > 1 ? item.delay_risk_score : item.delay_risk_score * 100)} • {item.risk_band}
+                          </span>
+                          <span className="font-mono text-xs font-semibold text-blue-800">
+                            {item.application_number}
+                          </span>
+                          {item.is_paused && (
+                            <span className="text-[10px] bg-slate-100 text-slate-600 px-1 rounded">Clock Paused</span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-700 truncate font-medium">
+                          {item.institution_name || 'Institution Dossier'}
+                        </p>
+                        <p className="text-[10px] text-slate-500">
+                          Current Stage: <span className="font-semibold text-slate-700">{item.stage_name}</span> ({item.stage_code})
+                        </p>
+                      </div>
+                      <a
+                        href={`/applications/${item.id}`}
+                        className="text-xs font-medium text-blue-600 hover:text-blue-800 shrink-0 mt-1 flex items-center gap-0.5"
+                      >
+                        Open <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

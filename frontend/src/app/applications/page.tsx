@@ -32,6 +32,7 @@ export default function ApplicationsListPage() {
   const [bucketFilter, setBucketFilter] = useState<string>('');
   const [regionFilter, setRegionFilter] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('');
+  const [riskFilter, setRiskFilter] = useState<string>('');
   const [page, setPage] = useState<number>(1);
   const limit = 15;
 
@@ -69,6 +70,7 @@ export default function ApplicationsListPage() {
       if (bucketFilter) params.ageing_bucket = bucketFilter;
       if (regionFilter) params.region_id = parseInt(regionFilter);
       if (statusFilter) params.status = statusFilter;
+      if (riskFilter) params.risk_band = riskFilter;
 
       const appRes = await applicationsApi.list(params);
       setApplications(appRes.applications);
@@ -82,7 +84,7 @@ export default function ApplicationsListPage() {
 
   useEffect(() => {
     loadData();
-  }, [page, stageFilter, bucketFilter, regionFilter, statusFilter]);
+  }, [page, stageFilter, bucketFilter, regionFilter, statusFilter, riskFilter]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -296,6 +298,19 @@ export default function ApplicationsListPage() {
                   <option value="CLOSED">Closed</option>
                 </select>
               </div>
+
+              <div>
+                <select
+                  value={riskFilter}
+                  onChange={(e) => { setRiskFilter(e.target.value); setPage(1); }}
+                  className="w-full py-1.5 px-2 text-xs rounded border border-slate-300 bg-white focus:outline-none focus:ring-1 focus:ring-blue-700"
+                >
+                  <option value="">All Risk Bands</option>
+                  <option value="LOW">Low Risk</option>
+                  <option value="MEDIUM">Medium Risk</option>
+                  <option value="HIGH">High Risk</option>
+                </select>
+              </div>
             </form>
           </CardContent>
         </Card>
@@ -394,11 +409,16 @@ export default function ApplicationsListPage() {
                         </span>
                       </td>
                       <td className="py-2.5 px-3 text-center">
-                        <span className={`text-[11px] font-semibold ${
-                          app.delay_risk_score > 0.7 ? 'text-rose-600 font-bold' :
-                          app.delay_risk_score > 0.4 ? 'text-amber-600' : 'text-slate-500'
-                        }`}>
-                          {Math.round(app.delay_risk_score * 100)}%
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold border ${
+                            app.risk_band === 'HIGH'
+                              ? 'bg-red-50 text-red-800 border-red-200'
+                              : app.risk_band === 'MEDIUM'
+                              ? 'bg-amber-50 text-amber-800 border-amber-200'
+                              : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                          }`}
+                        >
+                          {Math.round(app.delay_risk_score)} ({app.risk_band || 'LOW'})
                         </span>
                       </td>
                       <td className="py-2.5 px-3 text-right">

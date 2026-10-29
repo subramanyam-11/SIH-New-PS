@@ -174,6 +174,7 @@ export interface ApplicationItem {
   stage_due_date: string;
   revert_count: number;
   delay_risk_score: number;
+  risk_band?: 'LOW' | 'MEDIUM' | 'HIGH' | null;
   risk_factors: string[];
   days_in_stage: number;
   days_remaining: number;
@@ -241,8 +242,82 @@ export interface CaseSummaryItem {
   key_findings: string[];
   compliance_flags: string[];
   risk_assessment?: string | null;
+  source_label?: string;
+  input_hash?: string;
+  timeline_highlights?: Array<{ stage_name: string; entered_at: string; duration_days: number }>;
+  pending_items?: Array<{ type: string; title: string; status: string; due_date?: string }>;
+  upcoming_deadlines?: Array<{ item: string; due_date: string; days_left: number }>;
+  suggested_next_steps?: string[];
+  top_risk_factors?: Array<{ factor: string; points: number }>;
+  risk_score_at_generation?: number;
   generated_by: string;
   last_generated_at: string;
+}
+
+export interface RiskFactorItem {
+  name: string;
+  weight: number;
+  raw_value: any;
+  raw_denominator: any;
+  ratio: number;
+  points: number;
+  explanation: string;
+}
+
+export interface RiskBreakdownDetail {
+  application_id: number;
+  application_number: string;
+  score: number;
+  band: string;
+  is_paused: boolean;
+  is_closed: boolean;
+  factors: RiskFactorItem[];
+  weights: Record<string, number>;
+  raw_values: Record<string, any>;
+  weighted_points: Record<string, number>;
+  computed_at: string;
+  disclaimer: string;
+}
+
+export interface ApplicationRiskListItem {
+  id: number;
+  application_number: string;
+  institution_id: number;
+  institution_name: string;
+  region_id: number;
+  region_name: string;
+  stage_id: number;
+  stage_name: string;
+  stage_code: string;
+  status: string;
+  case_holder: string;
+  delay_risk_score: number;
+  risk_band: 'LOW' | 'MEDIUM' | 'HIGH';
+  is_paused: boolean;
+}
+
+export interface RiskWeightsConfig {
+  weights: Record<string, number>;
+  thresholds: Record<string, number>;
+  officer_capacity?: number;
+  stage_baselines?: Record<string, number>;
+  disclaimer?: string;
+}
+
+export interface NeedsAttentionAlert {
+  alert_id: number;
+  title: string;
+  rule_code: string;
+  rule_name: string;
+  severity: string;
+  status: string;
+  escalation_tier: number;
+  priority_score: number;
+  priority_explanation: string;
+  application_id?: number | null;
+  application_number?: string | null;
+  institution_name?: string | null;
+  created_at?: string | null;
 }
 
 export interface ApplicationDetail extends ApplicationItem {
@@ -335,6 +410,33 @@ export const applicationsApi = {
     const res = await apiClient.get(`/applications/${id}/clock-segments`);
     return res.data;
   },
+  getSummary: async (id: number): Promise<CaseSummaryItem> => {
+    const res = await apiClient.get<CaseSummaryItem>(`/applications/${id}/summary`);
+    return res.data;
+  },
+  regenerateSummary: async (id: number): Promise<CaseSummaryItem> => {
+    const res = await apiClient.post<CaseSummaryItem>(`/applications/${id}/summary/regenerate`);
+    return res.data;
+  },
+};
+
+export const riskApi = {
+  getDetail: async (id: number): Promise<RiskBreakdownDetail> => {
+    const res = await apiClient.get<RiskBreakdownDetail>(`/risk/applications/${id}`);
+    return res.data;
+  },
+  getWeights: async (): Promise<RiskWeightsConfig> => {
+    const res = await apiClient.get<RiskWeightsConfig>('/config/risk-weights');
+    return res.data;
+  },
+  updateWeights: async (payload: { weights: Record<string, number>; thresholds?: Record<string, number>; officer_capacity?: number }): Promise<RiskWeightsConfig> => {
+    const res = await apiClient.put<RiskWeightsConfig>('/config/risk-weights', payload);
+    return res.data;
+  },
+  listApplications: async (params?: Record<string, any>): Promise<ApplicationRiskListItem[]> => {
+    const res = await apiClient.get<ApplicationRiskListItem[]>('/risk/applications', { params });
+    return res.data;
+  },
 };
 
 // Phase 4 Alert & Escalation Interfaces
@@ -396,6 +498,8 @@ export interface AlertItem {
   resolution_remarks?: string | null;
   created_at: string;
   age_hours?: number | null;
+  priority_score?: number | null;
+  priority_explanation?: string | null;
 }
 
 export interface AlertDetail extends AlertItem {
@@ -496,6 +600,10 @@ export const alertsApi = {
     const res = await apiClient.get<AlertSummary>('/alerts/summary');
     return res.data;
   },
+  getNeedsAttentionToday: async (): Promise<NeedsAttentionAlert[]> => {
+    const res = await apiClient.get<NeedsAttentionAlert[]>('/alerts/needs-attention-today');
+    return res.data;
+  },
   get: async (id: number): Promise<AlertDetail> => {
     const res = await apiClient.get<AlertDetail>(`/alerts/${id}`);
     return res.data;
@@ -518,6 +626,10 @@ export const alertsApi = {
   },
   getEscalationMatrix: async (): Promise<EscalationMatrix> => {
     const res = await apiClient.get<EscalationMatrix>('/escalation/matrix');
+    return res.data;
+  },
+  generateDailyDigests: async (): Promise<{ status: string; digests_created: number }> => {
+    const res = await apiClient.post<{ status: string; digests_created: number }>('/alerts/daily-digest/generate');
     return res.data;
   },
 };

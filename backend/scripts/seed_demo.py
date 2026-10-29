@@ -687,12 +687,16 @@ def seed_demo_applications():
             (DocumentTypeEnum.AICTE_FDR_GUARANTEE, "BOB/FDR/2021/77", "Institutional FDR Guarantee Deposit", "Bank of Baroda", -1800, 25, DocumentStatusEnum.EXPIRING, 1),
             (DocumentTypeEnum.LAND_LEASE_DEED, "MH/PUN/1996/331", "30-Year Land Title Lease Deed", "Sub-Registrar Haveli, Pune", -10920, 15, DocumentStatusEnum.EXPIRING, 1),
 
-            # Expired -> triggers RULE_FIRE_NOC_EXPIRED
+            # Expired Fire NOC -> triggers RULE_FIRE_NOC_EXPIRED
             (DocumentTypeEnum.FIRE_SAFETY_NOC, "FS/LKO/2024/991", "Provisional Fire NOC", "Uttar Pradesh Fire Services", -400, -15, DocumentStatusEnum.EXPIRED, 1),
             (DocumentTypeEnum.FIRE_SAFETY_NOC, "FS/CHN/2024/442", "Building Fire Protection Certificate", "Tamil Nadu Fire & Rescue Services", -420, -35, DocumentStatusEnum.EXPIRED, 1),
             (DocumentTypeEnum.FIRE_SAFETY_NOC, "FS/KOL/2024/110", "Periodic Fire Safety NOC", "West Bengal Fire & Emergency Services", -380, -10, DocumentStatusEnum.EXPIRED, 1),
             (DocumentTypeEnum.FIRE_SAFETY_NOC, "FS/BPL/2024/552", "Statutory Fire Clearance", "Bhopal Municipal Corporation Fire Dept", -410, -25, DocumentStatusEnum.EXPIRED, 1),
             (DocumentTypeEnum.FIRE_SAFETY_NOC, "FS/MUM/2024/883", "Fire NOC - High Rise Academic Block", "Maharashtra Fire Service", -450, -45, DocumentStatusEnum.EXPIRED, 1),
+
+            # Expired Prescribed Documents (Lease, FDR) -> triggers RULE_DOCUMENT_EXPIRED
+            (DocumentTypeEnum.LAND_LEASE_DEED, "HR/GUR/1995/104", "30-Year Industrial Land Lease Deed", "Sub-Registrar Gurugram", -11000, -20, DocumentStatusEnum.EXPIRED, 1),
+            (DocumentTypeEnum.AICTE_FDR_GUARANTEE, "SBI/FDR/2021/901", "AICTE Security FDR Guarantee", "State Bank of India", -1825, -15, DocumentStatusEnum.EXPIRED, 1),
         ]
 
         for i, (dtype, dnum, title, auth, start_offset, expiry_offset, dstatus, ver) in enumerate(doc_templates):

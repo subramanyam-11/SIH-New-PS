@@ -11,11 +11,14 @@ import {
   configApi,
   adminApi,
   holidaysApi,
+  riskApi,
   AlertRule,
   EscalationRuleItem,
   Stage,
-  HolidayItem
+  HolidayItem,
+  RiskWeightsConfig
 } from '@/lib/api';
+import { DecisionSupportBadge } from '@/components/ui/DecisionSupportBadge';
 import {
   Sliders,
   ShieldAlert,
@@ -28,12 +31,14 @@ import {
   RotateCcw,
   Calendar,
   Trash2,
-  Plus
+  Plus,
+  Scale,
+  Sparkles
 } from 'lucide-react';
 
 export default function RulesSettingsPage() {
   const { scope } = useAuth();
-  const [activeTab, setActiveTab] = useState<'STAGES' | 'ALERT_RULES' | 'ESCALATION_RULES' | 'HOLIDAYS'>('ALERT_RULES');
+  const [activeTab, setActiveTab] = useState<'STAGES' | 'ALERT_RULES' | 'ESCALATION_RULES' | 'HOLIDAYS' | 'RISK_WEIGHTS'>('ALERT_RULES');
 
   const [stages, setStages] = useState<Stage[]>([]);
   const [alertRules, setAlertRules] = useState<AlertRule[]>([]);
@@ -41,6 +46,24 @@ export default function RulesSettingsPage() {
   const [holidays, setHolidays] = useState<HolidayItem[]>([]);
   const [weekendDays, setWeekendDays] = useState<number[]>([5, 6]);
   const [loading, setLoading] = useState<boolean>(true);
+
+  // Risk weights state (Phase 7 Innovation)
+  const [riskWeights, setRiskWeights] = useState<Record<string, number>>({
+    age_against_time_limit: 40,
+    past_returns: 25,
+    officer_workload: 20,
+    current_stage: 15,
+  });
+  const [riskThresholds, setRiskThresholds] = useState<Record<string, number>>({ medium: 40, high: 70 });
+  const [savingRiskWeights, setSavingRiskWeights] = useState<boolean>(false);
+  const [riskWeightsSuccess, setRiskWeightsSuccess] = useState<string | null>(null);
+  const [riskWeightsError, setRiskWeightsError] = useState<string | null>(null);
+
+  // Live preview simulator state
+  const [previewAgeRatio, setPreviewAgeRatio] = useState<number>(0.8); // 80% SLA
+  const [previewReturns, setPreviewReturns] = useState<number>(1); // 1 return
+  const [previewWorkload, setPreviewWorkload] = useState<number>(8); // 8 open cases
+  const [previewStageRatio, setPreviewStageRatio] = useState<number>(0.8); // 0.8 EVC baseline
 
   // Holiday form
   const [holidayDate, setHolidayDate] = useState<string>('');
@@ -70,22 +93,55 @@ export default function RulesSettingsPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [stgRes, alertRulesRes, escRulesRes, holRes, wkRes] = await Promise.all([
+      const [stgRes, alertRulesRes, escRulesRes, holRes, wkRes, riskWeightsRes] = await Promise.all([
         configApi.getStages(),
         adminApi.getAlertRules(),
         adminApi.getEscalationRules(),
         holidaysApi.getHolidays().catch(() => []),
         holidaysApi.getWeekendConfig().catch(() => ({ weekend_days: [5, 6], weekend_names: ['Saturday', 'Sunday'] })),
+        riskApi.getWeights().catch(() => null),
       ]);
       setStages(stgRes);
       setAlertRules(alertRulesRes);
       setEscalationRules(escRulesRes);
       setHolidays(holRes);
       setWeekendDays(wkRes.weekend_days || [5, 6]);
+      if (riskWeightsRes?.weights) {
+        setRiskWeights(riskWeightsRes.weights);
+      }
+      if (riskWeightsRes?.thresholds) {
+        setRiskThresholds(riskWeightsRes.thresholds);
+      }
     } catch (err) {
       console.error('Failed to load rules', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveRiskWeights = async () => {
+    const total =
+      Number(riskWeights.age_against_time_limit) +
+      Number(riskWeights.past_returns) +
+      Number(riskWeights.officer_workload) +
+      Number(riskWeights.current_stage);
+
+    if (total !== 100) {
+      setRiskWeightsError(`Total weights sum to ${total}%. The four factor weights must sum to exactly 100%.`);
+      return;
+    }
+
+    setSavingRiskWeights(true);
+    setRiskWeightsError(null);
+    setRiskWeightsSuccess(null);
+    try {
+      await riskApi.updateWeights({ weights: riskWeights, thresholds: riskThresholds });
+      setRiskWeightsSuccess('Risk score weights saved successfully. Audit log record generated.');
+      setTimeout(() => setRiskWeightsSuccess(null), 5000);
+    } catch (err: any) {
+      setRiskWeightsError(err.response?.data?.detail || 'Failed to update risk weights');
+    } finally {
+      setSavingRiskWeights(false);
     }
   };
 
@@ -211,7 +267,7 @@ export default function RulesSettingsPage() {
         </div>
 
         {/* Tab Controls */}
-        <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+        <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-2">
           <button
             onClick={() => setActiveTab('ALERT_RULES')}
             className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
@@ -220,7 +276,7 @@ export default function RulesSettingsPage() {
                 : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
-            Statutory Alert Rules (8 Seeded)
+            Statutory Alert Rules ({alertRules.length || 12} Active)
           </button>
           <button
             onClick={() => setActiveTab('ESCALATION_RULES')}
@@ -252,6 +308,17 @@ export default function RulesSettingsPage() {
           >
             <Calendar className="w-3.5 h-3.5" />
             <span>Working Days & Holidays</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('RISK_WEIGHTS')}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors flex items-center gap-1.5 ${
+              activeTab === 'RISK_WEIGHTS'
+                ? 'bg-blue-900 text-white'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <Sliders className="w-3.5 h-3.5 text-amber-400" />
+            <span>Risk Score Weights & Formulas</span>
           </button>
         </div>
 
@@ -644,6 +711,369 @@ export default function RulesSettingsPage() {
                     )}
                   </TableBody>
                 </Table>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* TAB 5: RISK WEIGHTS & FORMULAS (Phase 7 Innovation) */}
+        {activeTab === 'RISK_WEIGHTS' && (
+          <div className="space-y-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-3">
+                <div className="flex items-center gap-2">
+                  <Scale className="w-5 h-5 text-indigo-600" />
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <CardTitle>Delay Risk Score Factor Weights & Baseline Formula</CardTitle>
+                      <DecisionSupportBadge label="Decision Support Baseline" />
+                    </div>
+                    <CardDescription className="text-xs text-slate-500 mt-0.5">
+                      Configurable 4-factor statutory weights stored in system_config. Transparent, rule-based baseline.
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {Number(riskWeights.age_against_time_limit) +
+                    Number(riskWeights.past_returns) +
+                    Number(riskWeights.officer_workload) +
+                    Number(riskWeights.current_stage) === 100 ? (
+                    <Badge variant="success">Total: 100% Balanced</Badge>
+                  ) : (
+                    <Badge variant="danger">
+                      Total: {Number(riskWeights.age_against_time_limit) +
+                        Number(riskWeights.past_returns) +
+                        Number(riskWeights.officer_workload) +
+                        Number(riskWeights.current_stage)}% (Must equal 100%)
+                    </Badge>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Statutory disclaimer banner */}
+                <div className="p-3.5 bg-amber-50/70 border border-amber-200 rounded-lg text-xs text-amber-900 flex items-start gap-2.5">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold">Statutory Notice:</span> Rule-based baseline; can be trained on real AICTE data later.
+                    This risk score provides early operational decision support to prevent SLA breaches. It never automatically approves, rejects, moves, reverts, or closes any application.
+                  </div>
+                </div>
+
+                {riskWeightsSuccess && (
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-800 font-medium">
+                    {riskWeightsSuccess}
+                  </div>
+                )}
+                {riskWeightsError && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 font-medium">
+                    {riskWeightsError}
+                  </div>
+                )}
+
+                {/* 4 Factor Configuration Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Factor 1: Age Against SLA Limit */}
+                  <div className="p-4 border border-slate-200 rounded-lg bg-slate-50/50 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="font-semibold text-xs text-slate-900">1. Age Against Stage Time Limit</div>
+                      <span className="font-mono font-bold text-xs bg-blue-100 text-blue-900 px-2 py-0.5 rounded">
+                        {riskWeights.age_against_time_limit} pts
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      AICTE-held working days in current stage divided by stage SLA, capped at 150%. Paused institution time is strictly excluded.
+                    </p>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range"
+                        min="0"
+                        max="80"
+                        step="1"
+                        value={riskWeights.age_against_time_limit}
+                        onChange={(e) =>
+                          setRiskWeights({ ...riskWeights, age_against_time_limit: Number(e.target.value) })
+                        }
+                        disabled={!isAdmin}
+                        className="flex-1"
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={riskWeights.age_against_time_limit}
+                        onChange={(e) =>
+                          setRiskWeights({ ...riskWeights, age_against_time_limit: Number(e.target.value) })
+                        }
+                        disabled={!isAdmin}
+                        className="w-16 p-1 text-xs border border-slate-300 rounded font-mono text-center font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Factor 2: Past Returns */}
+                  <div className="p-4 border border-slate-200 rounded-lg bg-slate-50/50 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="font-semibold text-xs text-slate-900">2. Past Returns (Reverts to Institution)</div>
+                      <span className="font-mono font-bold text-xs bg-indigo-100 text-indigo-900 px-2 py-0.5 rounded">
+                        {riskWeights.past_returns} pts
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      revert_count divided by configurable revert cap (default 2). Reflects application friction and prior deficiencies.
+                    </p>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range"
+                        min="0"
+                        max="80"
+                        step="1"
+                        value={riskWeights.past_returns}
+                        onChange={(e) =>
+                          setRiskWeights({ ...riskWeights, past_returns: Number(e.target.value) })
+                        }
+                        disabled={!isAdmin}
+                        className="flex-1"
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={riskWeights.past_returns}
+                        onChange={(e) =>
+                          setRiskWeights({ ...riskWeights, past_returns: Number(e.target.value) })
+                        }
+                        disabled={!isAdmin}
+                        className="w-16 p-1 text-xs border border-slate-300 rounded font-mono text-center font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Factor 3: Officer Workload */}
+                  <div className="p-4 border border-slate-200 rounded-lg bg-slate-50/50 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="font-semibold text-xs text-slate-900">3. Officer Active Queue Workload</div>
+                      <span className="font-mono font-bold text-xs bg-amber-100 text-amber-900 px-2 py-0.5 rounded">
+                        {riskWeights.officer_workload} pts
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      Open active applications of assigned officer divided by configurable capacity limit (default 12).
+                    </p>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range"
+                        min="0"
+                        max="80"
+                        step="1"
+                        value={riskWeights.officer_workload}
+                        onChange={(e) =>
+                          setRiskWeights({ ...riskWeights, officer_workload: Number(e.target.value) })
+                        }
+                        disabled={!isAdmin}
+                        className="flex-1"
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={riskWeights.officer_workload}
+                        onChange={(e) =>
+                          setRiskWeights({ ...riskWeights, officer_workload: Number(e.target.value) })
+                        }
+                        disabled={!isAdmin}
+                        className="w-16 p-1 text-xs border border-slate-300 rounded font-mono text-center font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Factor 4: Current Stage Baseline */}
+                  <div className="p-4 border border-slate-200 rounded-lg bg-slate-50/50 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="font-semibold text-xs text-slate-900">4. Current Stage Baseline Weight</div>
+                      <span className="font-mono font-bold text-xs bg-purple-100 text-purple-900 px-2 py-0.5 rounded">
+                        {riskWeights.current_stage} pts
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      Per-stage baseline multiplier from config (EVC / SAC / SHC carry higher inherent logistical delay risk).
+                    </p>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range"
+                        min="0"
+                        max="80"
+                        step="1"
+                        value={riskWeights.current_stage}
+                        onChange={(e) =>
+                          setRiskWeights({ ...riskWeights, current_stage: Number(e.target.value) })
+                        }
+                        disabled={!isAdmin}
+                        className="flex-1"
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={riskWeights.current_stage}
+                        onChange={(e) =>
+                          setRiskWeights({ ...riskWeights, current_stage: Number(e.target.value) })
+                        }
+                        disabled={!isAdmin}
+                        className="w-16 p-1 text-xs border border-slate-300 rounded font-mono text-center font-bold"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Save Button for Admin */}
+                {isAdmin && (
+                  <div className="flex items-center justify-between pt-4 border-t border-slate-200">
+                    <div className="text-xs text-slate-500">
+                      Any weight modification will generate an immutable audit log and take effect on next recomputation.
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={handleSaveRiskWeights}
+                      disabled={
+                        savingRiskWeights ||
+                        Number(riskWeights.age_against_time_limit) +
+                          Number(riskWeights.past_returns) +
+                          Number(riskWeights.officer_workload) +
+                          Number(riskWeights.current_stage) !== 100
+                      }
+                      className="bg-blue-900 hover:bg-blue-800"
+                    >
+                      {savingRiskWeights ? 'Saving Weights...' : 'Save & Publish Risk Weights'}
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Interactive Live Simulator Card */}
+            <Card className="border-indigo-200 bg-indigo-50/20">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-indigo-700" />
+                  <div>
+                    <CardTitle className="text-base font-bold text-slate-900">
+                      Interactive Delay Risk Formula Live Preview
+                    </CardTitle>
+                    <CardDescription className="text-xs text-slate-600 mt-0.5">
+                      Simulate how these factor weights score a hypothetical case in real-time
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-700 block mb-1">
+                      Stage SLA Consumed ({Math.round(previewAgeRatio * 100)}%)
+                    </label>
+                    <input
+                      type="range"
+                      min="0.1"
+                      max="1.5"
+                      step="0.05"
+                      value={previewAgeRatio}
+                      onChange={(e) => setPreviewAgeRatio(Number(e.target.value))}
+                      className="w-full"
+                    />
+                    <span className="text-[10px] text-slate-500 font-mono">
+                      Points: {(Math.min(1.5, previewAgeRatio) * riskWeights.age_against_time_limit).toFixed(1)} / {riskWeights.age_against_time_limit}
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-700 block mb-1">
+                      Reverts / Returns ({previewReturns} of 2 max)
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="2"
+                      step="1"
+                      value={previewReturns}
+                      onChange={(e) => setPreviewReturns(Number(e.target.value))}
+                      className="w-full"
+                    />
+                    <span className="text-[10px] text-slate-500 font-mono">
+                      Points: {((Math.min(previewReturns, 2) / 2) * riskWeights.past_returns).toFixed(1)} / {riskWeights.past_returns}
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-700 block mb-1">
+                      Officer Queue ({previewWorkload} cases)
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="16"
+                      step="1"
+                      value={previewWorkload}
+                      onChange={(e) => setPreviewWorkload(Number(e.target.value))}
+                      className="w-full"
+                    />
+                    <span className="text-[10px] text-slate-500 font-mono">
+                      Points: {(Math.min(1.0, previewWorkload / 12) * riskWeights.officer_workload).toFixed(1)} / {riskWeights.officer_workload}
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-700 block mb-1">
+                      Stage Inherent Risk ({previewStageRatio === 0.8 ? 'EVC / SAC (0.8)' : previewStageRatio === 0.5 ? 'Scrutiny (0.5)' : 'Draft (0.1)'})
+                    </label>
+                    <select
+                      value={previewStageRatio}
+                      onChange={(e) => setPreviewStageRatio(Number(e.target.value))}
+                      className="w-full p-1 text-xs border border-slate-300 rounded bg-white"
+                    >
+                      <option value={0.8}>EVC / SAC / SHC (0.8)</option>
+                      <option value={0.5}>Scrutiny / Verification (0.5)</option>
+                      <option value={0.2}>Submission / Intake (0.2)</option>
+                    </select>
+                    <span className="text-[10px] text-slate-500 font-mono">
+                      Points: {(previewStageRatio * riskWeights.current_stage).toFixed(1)} / {riskWeights.current_stage}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Simulated Outcome Banner */}
+                {(() => {
+                  const pt1 = Math.min(1.5, previewAgeRatio) * riskWeights.age_against_time_limit;
+                  const pt2 = (Math.min(previewReturns, 2) / 2) * riskWeights.past_returns;
+                  const pt3 = Math.min(1.0, previewWorkload / 12) * riskWeights.officer_workload;
+                  const pt4 = previewStageRatio * riskWeights.current_stage;
+                  const totalScore = Math.min(100, Math.round(pt1 + pt2 + pt3 + pt4));
+                  const band = totalScore >= riskThresholds.high ? 'HIGH' : totalScore >= riskThresholds.medium ? 'MEDIUM' : 'LOW';
+
+                  return (
+                    <div className="p-4 bg-white border border-indigo-200 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                          Simulated Delay Risk Assessment
+                        </div>
+                        <div className="text-xl font-bold text-slate-900 mt-0.5">
+                          Risk Score: <span className="font-mono text-indigo-700">{totalScore}</span> / 100
+                        </div>
+                        <p className="text-xs text-slate-600 mt-1 font-sans">
+                          Open for {Math.round(previewAgeRatio * 10)} of 10 working days ({pt1.toFixed(1)} of {riskWeights.age_against_time_limit} pts), {previewReturns} past returns ({pt2.toFixed(1)} pts), officer queue at {previewWorkload} cases ({pt3.toFixed(1)} pts).
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className={`inline-block px-3 py-1 rounded text-xs font-bold uppercase font-mono tracking-wide ${
+                          band === 'HIGH' ? 'bg-rose-100 text-rose-800 border border-rose-300' :
+                          band === 'MEDIUM' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
+                          'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                        }`}>
+                          Risk Band: {band}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           </div>

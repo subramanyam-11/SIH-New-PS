@@ -13,15 +13,18 @@ router = APIRouter(prefix="", tags=["Lookups & Scope"])
 ROLE_SCREEN_PERMISSIONS = {
     UserRoleEnum.ADMIN: [
         "/dashboard", "/applications", "/alerts", "/escalation-matrix", "/notifications",
-        "/admin/outbox", "/evc-queue", "/undertakings", "/document-validity", "/settings/rules", "/reports"
+        "/admin/outbox", "/evc-queue", "/undertakings", "/document-validity", "/settings/rules", "/reports",
+        "/bottlenecks", "/planner"
     ],
     UserRoleEnum.COMPETENT_AUTHORITY: [
         "/dashboard", "/applications", "/alerts", "/escalation-matrix", "/notifications",
-        "/evc-queue", "/undertakings", "/document-validity", "/reports"
+        "/evc-queue", "/undertakings", "/document-validity", "/reports",
+        "/bottlenecks", "/planner"
     ],
     UserRoleEnum.REGIONAL_HEAD: [
         "/dashboard", "/applications", "/alerts", "/escalation-matrix", "/notifications",
-        "/evc-queue", "/undertakings", "/document-validity", "/reports"
+        "/evc-queue", "/undertakings", "/document-validity", "/reports",
+        "/bottlenecks", "/planner"
     ],
     UserRoleEnum.SCRUTINY_OFFICER: [
         "/dashboard", "/applications", "/alerts", "/escalation-matrix", "/notifications",
@@ -29,10 +32,11 @@ ROLE_SCREEN_PERMISSIONS = {
     ],
     UserRoleEnum.EVC_COORDINATOR: [
         "/dashboard", "/applications", "/alerts", "/escalation-matrix", "/notifications",
-        "/evc-queue", "/document-validity"
+        "/evc-queue", "/document-validity", "/planner"
     ],
     UserRoleEnum.BUREAU_OFFICER: [
-        "/dashboard", "/applications", "/alerts", "/escalation-matrix", "/notifications", "/reports"
+        "/dashboard", "/applications", "/alerts", "/escalation-matrix", "/notifications", "/reports",
+        "/bottlenecks", "/planner"
     ],
     UserRoleEnum.COMMITTEE_MEMBER: [
         "/committee/my-cases"

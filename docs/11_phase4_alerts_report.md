@@ -16,24 +16,26 @@ Phase 4 introduces the real-time compliance guardian for AICTE. The Alert Rules 
 
 ---
 
-## 2. Seeded Alert Rules Engine Matrix
+## 2. Statutory Alert Rules Engine Matrix (11 Active + 1 Advisory Rule)
 
-All 8 seeded rules are loaded directly from the `alert_rules` and `system_config` tables. Zero thresholds are hard-coded in Python.
+Following Phase 7 extension, all **11 active statutory rules** plus **1 early-warning advisory rule** (`RULE_RISK_HIGH`) are loaded directly from the `alert_rules` and `system_config` tables. Zero thresholds are hard-coded in Python.
 
-| Rule Code | Monitored Entity | Trigger Condition | Threshold Source | Default Severity | Regulatory Clause |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| `RULE_SCRUTINY_NEAR_BREACH` | `APPLICATION` | Stage time elapsed $\ge$ 80% of stage SLA | `system_config.alert_thresholds.near_breach_percent` | `MEDIUM` | APH 2026 Chapter II Clause 2.1 |
-| `RULE_SCRUTINY_OVERDUE` | `APPLICATION` | Current time $>$ `stage_due_date` | `stage.default_sla_days` | `HIGH` | APH 2026 Chapter II Clause 2.2 |
-| `RULE_EVC_UNSCHEDULED` | `EVC_VISIT` | Status `PENDING_ASSIGNMENT` for $>$ 5 days | `system_config.sla_rules.EVC_PENDING_TO_SCHEDULE` | `HIGH` | APH 2026 Chapter III Clause 3.4 |
-| `RULE_EVC_VISIT_OVERDUE` | `EVC_VISIT` | Status `SCHEDULED` and inspection date passed without report | `system_config.sla_rules.EVC_VISIT_TO_REPORT` | `HIGH` | APH 2026 Chapter III Clause 3.6 |
-| `RULE_UNDERTAKING_DUE_15D` | `UNDERTAKING` | Status `PENDING` and due within 15 days | `alert_rules.condition_logic.days_remaining <= 15` | `MEDIUM` | APH 2026 Chapter I Clause 1.8 |
-| `RULE_UNDERTAKING_OVERDUE` | `UNDERTAKING` | Status `PENDING` and `due_date` has passed | `alert_rules.condition_logic.days_remaining < 0` | `HIGH` | APH 2026 Chapter I Clause 1.9 |
-| `RULE_LEASE_90D` | `DOCUMENT` | Land lease / FDR expiring in $\le$ 90 days | `alert_rules.condition_logic.days_to_expiry <= 90` | `MEDIUM` | APH 2026 Appendix 4 Clause 4.2 |
-| `RULE_LEASE_30D` | `DOCUMENT` | Land lease / FDR expiring in $\le$ 30 days | `alert_rules.condition_logic.days_to_expiry <= 30` | `HIGH` | APH 2026 Appendix 4 Clause 4.3 |
-| `RULE_FIRE_NOC_EXPIRED` | `DOCUMENT` | Fire Safety NOC `expiry_date` has elapsed | `alert_rules.condition_logic.days_to_expiry <= 0` | `CRITICAL` | APH 2026 Appendix 4 Clause 4.4 |
-| `RULE_MULTIPLE_REVERTS` | `APPLICATION` | Application reverted $\ge$ 2 times | `alert_rules.condition_logic.revert_count >= 2` | `HIGH` | APH 2026 Chapter II Clause 2.5 |
+| Rule Code | Monitored Entity | Trigger Condition | Day Basis | Threshold Source | Default Severity | Regulatory Clause |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `RULE_SCRUTINY_NEAR_BREACH` | `APPLICATION` | Stage time elapsed $\ge$ 80% of stage SLA | Working Days | `system_config.alert_thresholds.near_breach_percent` | `MEDIUM` | APH 2026 Chapter II Clause 2.1 |
+| `RULE_SCRUTINY_OVERDUE` | `APPLICATION` | Current time $>$ `stage_due_date` | Working Days | `stage.default_sla_days` | `HIGH` | APH 2026 Chapter II Clause 2.2 |
+| `RULE_EVC_UNSCHEDULED` | `EVC_VISIT` | Status `SCHEDULED` not set within threshold | Calendar Days | `system_config.sla_rules.EVC_PENDING_TO_SCHEDULE` | `HIGH` | APH 2026 Chapter III Clause 3.4 |
+| `RULE_EVC_VISIT_OVERDUE` | `EVC_VISIT` | Scheduled visit date passed without report | Working Days | `system_config.sla_rules.EVC_VISIT_TO_REPORT` | `HIGH` | APH 2026 Chapter III Clause 3.6 |
+| `RULE_UNDERTAKING_DUE_15D` | `UNDERTAKING` | Status `PENDING` and due within 15 days | Calendar Days | `alert_rules.condition_logic.days_remaining <= 15` | `MEDIUM` | APH 2026 Chapter I Clause 1.8 |
+| `RULE_UNDERTAKING_OVERDUE` | `UNDERTAKING` | Status `PENDING` and `due_date` has passed | Calendar Days | `alert_rules.condition_logic.days_remaining < 0` | `HIGH` | APH 2026 Chapter I Clause 1.9 |
+| `RULE_LEASE_90D` | `DOCUMENT` | Land lease / FDR expiring in $\le$ 90 days | Calendar Days | `alert_rules.condition_logic.days_to_expiry <= 90` | `MEDIUM` | APH 2026 Appendix 4 Clause 4.2 |
+| `RULE_LEASE_30D` | `DOCUMENT` | Land lease / FDR expiring in $\le$ 30 days | Calendar Days | `alert_rules.condition_logic.days_to_expiry <= 30` | `HIGH` | APH 2026 Appendix 4 Clause 4.3 |
+| `RULE_FIRE_NOC_EXPIRED` | `DOCUMENT` | Fire Safety NOC `expiry_date` has elapsed | Calendar Days | `alert_rules.condition_logic.days_to_expiry <= 0` | `CRITICAL` | APH 2026 Appendix 4 Clause 4.4 |
+| `RULE_DOCUMENT_EXPIRED` | `DOCUMENT` | Prescribed lease/FDR/doc expired without verified renewal | Calendar Days | `alert_rules.condition_logic.days_to_expiry <= 0` | `HIGH` | APH 2026 Appendix 4 Clause 4.5 |
+| `RULE_MULTIPLE_REVERTS` | `APPLICATION` | Application reverted $\ge$ 2 times | Event/Count | `alert_rules.condition_logic.revert_count >= 2` | `HIGH` | APH 2026 Chapter II Clause 2.5 |
+| `RULE_RISK_HIGH` | `APPLICATION` | 4-Factor Delay Risk Score reaches High band ($\ge$ 70) | Rule Score | `system_config.risk_score_thresholds.high` | `INFO` | APH 2026 Early-Warning Notice |
 
-*Note on Regulatory Clauses:* Per user guidance, all APH clause citations display with a prominent `(sample reference)` marker in the user interface unless explicitly marked as verified in system configuration.
+*Note on Regulatory Clauses:* Per user guidance, all APH clause citations display with a prominent `(sample reference)` marker in the user interface unless explicitly marked as verified in system configuration. All Phase 7 innovation rules carry the persistent *"Decision support only"* badge.
 
 ---
 

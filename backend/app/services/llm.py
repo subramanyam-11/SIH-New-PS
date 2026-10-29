@@ -1,4 +1,4 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from app.core.config import settings
 import json
 
@@ -54,11 +54,14 @@ class TemplateFallbackLLMClient(BaseLLMClient):
             "provider": "template_fallback"
         }
 
+    def rewrite_summary(self, facts: Dict[str, Any], original_summary: str) -> Optional[str]:
+        return None
+
 
 class GeminiLLMClient(BaseLLMClient):
     """
     Client for Google Gemini API when LLM_API_KEY is supplied.
-    Falls back gracefully if the API call fails.
+    Falls back gracefully if the API call fails or times out.
     """
     def __init__(self, api_key: str, model_name: str = "gemini-1.5-flash"):
         self.api_key = api_key
@@ -66,19 +69,37 @@ class GeminiLLMClient(BaseLLMClient):
         self.fallback = TemplateFallbackLLMClient()
 
     def generate_case_summary(self, application_data: Dict[str, Any]) -> Dict[str, Any]:
+        return self.fallback.generate_case_summary(application_data)
+
+    def rewrite_summary(self, facts: Dict[str, Any], original_summary: str) -> Optional[str]:
         if not self.api_key:
-            return self.fallback.generate_case_summary(application_data)
-        
+            return None
         try:
-            # When ready in future phase, import and call google.genai or httpx request
-            # For now, return structured output with provider marker
-            return self.fallback.generate_case_summary(application_data)
+            import urllib.request
+            timeout = getattr(settings, "LLM_TIMEOUT_SECONDS", 10)
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model_name}:generateContent?key={self.api_key}"
+            prompt_text = (
+                f"You are a regulatory drafting assistant for the All India Council for Technical Education (AICTE). "
+                f"Rewrite this executive case summary in concise, formal administrative language. "
+                f"Do NOT add any facts, dates, or assumptions not present in these input facts: {json.dumps(facts)}. "
+                f"Original summary: {original_summary}"
+            )
+            req_body = json.dumps({"contents": [{"parts": [{"text": prompt_text}]}]}).encode("utf-8")
+            req = urllib.request.Request(url, data=req_body, headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=timeout) as response:
+                resp_data = json.loads(response.read().decode("utf-8"))
+                candidates = resp_data.get("candidates", [])
+                if candidates and "content" in candidates[0]:
+                    parts = candidates[0]["content"].get("parts", [])
+                    if parts and "text" in parts[0]:
+                        return parts[0]["text"].strip()
+            return None
         except Exception:
-            return self.fallback.generate_case_summary(application_data)
+            return None
 
 
 def get_llm_client() -> BaseLLMClient:
-    provider = settings.LLM_PROVIDER.lower()
-    if provider == "gemini" and settings.LLM_API_KEY:
+    provider = getattr(settings, "LLM_PROVIDER", "none").lower()
+    if provider == "gemini" and getattr(settings, "LLM_API_KEY", ""):
         return GeminiLLMClient(api_key=settings.LLM_API_KEY, model_name=settings.LLM_MODEL)
     return TemplateFallbackLLMClient()

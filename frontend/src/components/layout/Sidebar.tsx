@@ -35,6 +35,8 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { name: 'EVC Queue', href: '/evc-queue', icon: CalendarCheck2 },
   { name: 'Undertakings', href: '/undertakings', icon: ClipboardList },
   { name: 'Document Validity', href: '/document-validity', icon: ShieldCheck },
+  { name: 'Bottlenecks', href: '/bottlenecks', icon: Network },
+  { name: 'What-If Planner', href: '/planner', icon: Sliders },
   { name: 'APH & Escalation Rules', href: '/settings/rules', icon: Sliders },
   { name: 'Reports', href: '/reports', icon: BarChart3 },
 ];

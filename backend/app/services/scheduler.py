@@ -52,6 +52,14 @@ def run_checks_now(triggered_by: str = "MANUAL") -> Dict[str, Any]:
         # 3. Process Outbox
         outbox_res = EmailService.process_outbox(db=db)
 
+        # 4. Phase 7: Recompute Delay Risk Scores
+        from app.services.risk_score_service import RiskScoreService
+        risk_counts = RiskScoreService.recompute_all(db=db)
+
+        # 5. Phase 7: Sync Smart Alert Priorities
+        from app.services.alert_ranking_service import AlertRankingService
+        ranked_count = AlertRankingService.sync_alert_priorities(db=db)
+
         duration_ms = int((time.time() - start_time) * 1000)
         now_finished = ClockService.get_now()
 

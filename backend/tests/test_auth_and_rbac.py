@@ -148,5 +148,5 @@ def test_config_endpoints():
 
     rules_resp = client.get("/api/v1/config/rules", headers=headers)
     assert rules_resp.status_code == 200
-    assert "alert_rules" in rules_resp.json()
-    assert len(rules_resp.json()["alert_rules"]) == 8
+    # Phase 7 expanded alert rules from 8 to 12 (11 active + 1 advisory RULE_RISK_HIGH)
+    assert len(rules_resp.json()["alert_rules"]) == 12

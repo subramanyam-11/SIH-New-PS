@@ -222,6 +222,14 @@ class CaseSummaryOut(BaseModel):
     key_findings: List[str]
     compliance_flags: List[str]
     risk_assessment: Optional[str] = None
+    source_label: Optional[str] = "Template summary"
+    input_hash: Optional[str] = None
+    timeline_highlights: Optional[List[Dict[str, Any]]] = []
+    pending_items: Optional[List[Dict[str, Any]]] = []
+    upcoming_deadlines: Optional[List[Dict[str, Any]]] = []
+    suggested_next_steps: Optional[List[str]] = []
+    top_risk_factors: Optional[List[Dict[str, Any]]] = []
+    risk_score_at_generation: Optional[float] = None
     generated_by: str
     last_generated_at: datetime
 
@@ -267,6 +275,7 @@ class ApplicationOut(BaseModel):
     escalation_reason: Optional[str] = None
 
     delay_risk_score: float = 0.0
+    risk_band: Optional[str] = "LOW"
     approval_letter_ref: Optional[str] = None
 
     # Phase 6 Fair Pendency Clock & Closed State fields
@@ -373,6 +382,8 @@ class AlertOut(BaseModel):
     resolution_remarks: Optional[str] = None
     created_at: datetime
     age_hours: Optional[float] = None
+    priority_score: Optional[float] = 0.0
+    priority_explanation: Optional[str] = None
 
 
 class AlertDetailOut(AlertOut):
@@ -770,6 +781,88 @@ class CommitteeAssignmentOut(BaseModel):
 class OverdueCasesReportOut(BaseModel):
     summary: Dict[str, Any]
     items: List[Dict[str, Any]]
+
+
+# --- PHASE 7 SCHEMAS ---
+
+class RiskWeightsUpdate(BaseModel):
+    weights: Dict[str, int]
+    thresholds: Optional[Dict[str, int]] = None
+    officer_capacity: Optional[int] = None
+
+
+class RiskWeightsOut(BaseModel):
+    weights: Dict[str, int]
+    thresholds: Dict[str, int]
+    officer_capacity: int
+    stage_baselines: Dict[str, float]
+    disclaimer: str
+
+
+class RiskFactorOut(BaseModel):
+    name: str
+    weight: int
+    raw_value: Any
+    raw_denominator: Any
+    ratio: float
+    points: float
+    explanation: str
+
+
+class ApplicationRiskDetailOut(BaseModel):
+    application_id: int
+    application_number: str
+    score: float
+    band: str
+    is_paused: bool
+    is_closed: bool
+    factors: List[RiskFactorOut]
+    weights: Dict[str, int]
+    raw_values: Dict[str, Any]
+    weighted_points: Dict[str, float]
+    computed_at: datetime
+    disclaimer: str
+
+
+class ApplicationRiskListItemOut(BaseModel):
+    id: int
+    application_number: str
+    institution_id: int
+    institution_name: str
+    region_id: int
+    region_name: str
+    stage_id: int
+    stage_name: str
+    stage_code: str
+    status: str
+    case_holder: str
+    delay_risk_score: float
+    risk_band: str
+    is_paused: bool
+
+
+class WhatIfSimulateRequest(BaseModel):
+    region_id: Optional[int] = None
+    extra_visits_per_week: int = 0
+    extra_staffing_capacity: int = 0
+    horizon_weeks: int = 4
+
+
+class NeedsAttentionAlertOut(BaseModel):
+    alert_id: int
+    title: str
+    rule_code: str
+    rule_name: str
+    severity: str
+    status: str
+    escalation_tier: int
+    priority_score: float
+    priority_explanation: str
+    application_id: Optional[int] = None
+    application_number: Optional[str] = None
+    institution_name: Optional[str] = None
+    created_at: Optional[str] = None
+
 
 
 

@@ -19,9 +19,10 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001"
     
     # LLM
-    LLM_PROVIDER: str = "template_fallback"
+    LLM_PROVIDER: str = "none"
     LLM_API_KEY: str = ""
     LLM_MODEL: str = "gemini-1.5-flash"
+    LLM_TIMEOUT_SECONDS: int = 10
     
     # Email Outbox & SMTP
     EMAIL_SEND_ENABLED: bool = False

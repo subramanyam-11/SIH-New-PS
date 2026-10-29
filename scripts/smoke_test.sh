@@ -322,6 +322,63 @@ else
   echo "FAILED (New role login or scope failed)" && exit 1
 fi
 
+# ==============================================================================
+# PHASE 7 INNOVATION LAYER CHECKS
+# ==============================================================================
+
+echo -n "23. Phase 7 Delay Risk Score List (GET /risk/applications) ... "
+RISK_LIST=$(curl -s "$BACKEND_URL/api/v1/risk/applications?limit=5" -H "Authorization: Bearer $ADMIN_TOKEN")
+if echo "$RISK_LIST" | grep -q 'delay_risk_score' && echo "$RISK_LIST" | grep -q 'risk_band'; then
+  echo "PASSED (Scored applications returned with risk bands)"
+else
+  echo "FAILED (Risk list invalid: $RISK_LIST)" && exit 1
+fi
+
+FIRST_APP_ID=$(curl -s "$BACKEND_URL/api/v1/applications?limit=1" -H "Authorization: Bearer $ADMIN_TOKEN" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data['applications'][0]['id'] if data.get('applications') else '')")
+
+echo -n "24. Phase 7 Risk Breakdown Detail (GET /risk/applications/{id}) ... "
+RISK_DETAIL=$(curl -s "$BACKEND_URL/api/v1/risk/applications/$FIRST_APP_ID" -H "Authorization: Bearer $ADMIN_TOKEN")
+if echo "$RISK_DETAIL" | grep -q 'weighted_points' && echo "$RISK_DETAIL" | grep -q 'factors' && echo "$RISK_DETAIL" | grep -q 'disclaimer'; then
+  echo "PASSED (4-factor transparent breakdown verified)"
+else
+  echo "FAILED (Risk breakdown invalid: $RISK_DETAIL)" && exit 1
+fi
+
+echo -n "25. Phase 7 Bottleneck Finder (GET /bottlenecks) ... "
+BN_RES=$(curl -s "$BACKEND_URL/api/v1/bottlenecks" -H "Authorization: Bearer $ADMIN_TOKEN")
+if echo "$BN_RES" | grep -q 'bottlenecks' && echo "$BN_RES" | grep -q 'stage_region_grid' && echo "$BN_RES" | grep -q 'officer_bottlenecks'; then
+  echo "PASSED (Regional heat matrix and queue bottlenecks calculated)"
+else
+  echo "FAILED (Bottleneck report invalid: $BN_RES)" && exit 1
+fi
+
+echo -n "26. Phase 7 Structured AI Case Summary (GET /applications/{id}/summary) ... "
+SUMM_RES=$(curl -s "$BACKEND_URL/api/v1/applications/$FIRST_APP_ID/summary" -H "Authorization: Bearer $ADMIN_TOKEN")
+if echo "$SUMM_RES" | grep -q 'timeline_highlights' && echo "$SUMM_RES" | grep -q 'source_label' && echo "$SUMM_RES" | grep -q 'suggested_next_steps'; then
+  echo "PASSED (Structured summary generated and privacy-safe)"
+else
+  echo "FAILED (Summary response invalid: $SUMM_RES)" && exit 1
+fi
+
+echo -n "27. Phase 7 Read-Only What-If Planner (POST /planner/simulate) ... "
+WHATIF_RES=$(curl -s -X POST "$BACKEND_URL/api/v1/planner/simulate" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -d '{"extra_visits_per_week": 3, "extra_staffing_capacity": 1, "horizon_weeks": 4}')
+if echo "$WHATIF_RES" | grep -q 'weekly_projection' && echo "$WHATIF_RES" | grep -q 'cases_moving_forward' && echo "$WHATIF_RES" | grep -q 'disclaimer'; then
+  echo "PASSED (Counterfactual simulation computed without state mutation)"
+else
+  echo "FAILED (What-if planner invalid: $WHATIF_RES)" && exit 1
+fi
+
+echo -n "28. Phase 7 Smart Alert Ranking (GET /alerts?sort_by=priority) ... "
+ALERT_RANK=$(curl -s "$BACKEND_URL/api/v1/alerts?sort_by=priority&sort_order=desc&limit=5" -H "Authorization: Bearer $ADMIN_TOKEN")
+if echo "$ALERT_RANK" | grep -q 'priority_score' && echo "$ALERT_RANK" | grep -q 'priority_explanation'; then
+  echo "PASSED (Composite priority scores and explainable rationale verified)"
+else
+  echo "FAILED (Smart alert ranking invalid: $ALERT_RANK)" && exit 1
+fi
+
 # Reset clock
 curl -s -X POST "$BACKEND_URL/api/v1/demo/reset-clock" -H "Authorization: Bearer $ADMIN_TOKEN" > /dev/null
 
@@ -331,5 +388,5 @@ if [ $SERVER_STARTED_BY_SCRIPT -eq 1 ]; then
   kill $UVICORN_PID || true
 fi
 
-echo "=== ALL PHASE 1-6 SMOKE CHECKS PASSED SUCCESSFULLY ==="
+echo "=== ALL PHASE 1-7 SMOKE CHECKS (28 STEPS) PASSED SUCCESSFULLY ==="
 

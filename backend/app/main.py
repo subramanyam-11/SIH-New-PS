@@ -18,6 +18,9 @@ from app.api.v1.documents import router as documents_router
 from app.api.v1.reports import router as reports_router
 from app.api.v1.committee import router as committee_router
 from app.api.v1.holidays import router as holidays_router
+from app.api.v1.risk import router as risk_router
+from app.api.v1.bottlenecks import router as bottlenecks_router
+from app.api.v1.planner import router as planner_router
 from app.services.scheduler import start_scheduler, stop_scheduler
 from app.schemas import HealthCheckResponse
 
@@ -96,6 +99,9 @@ app.include_router(documents_router, prefix="/api/v1")
 app.include_router(reports_router, prefix="/api/v1")
 app.include_router(committee_router, prefix="/api/v1")
 app.include_router(holidays_router, prefix="/api/v1")
+app.include_router(risk_router, prefix="/api/v1")
+app.include_router(bottlenecks_router, prefix="/api/v1")
+app.include_router(planner_router, prefix="/api/v1")
 
 
 if __name__ == "__main__":

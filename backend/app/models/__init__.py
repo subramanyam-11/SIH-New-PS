@@ -125,9 +125,14 @@ class AlertTypeEnum(str, enum.Enum):
     DOCUMENT_EXPIRING = "DOCUMENT_EXPIRING"
     DOCUMENT_EXPIRED = "DOCUMENT_EXPIRED"
     MULTIPLE_REVERTS = "MULTIPLE_REVERTS"
+    EVC_VISIT_OVERDUE = "EVC_VISIT_OVERDUE"
+    UNDERTAKING_OVERDUE = "UNDERTAKING_OVERDUE"
+    DOCUMENT_RENEWAL_OVERDUE = "DOCUMENT_RENEWAL_OVERDUE"
+    RISK_HIGH = "RISK_HIGH"
 
 
 class AlertSeverityEnum(str, enum.Enum):
+    INFO = "INFO"
     LOW = "LOW"
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
@@ -289,6 +294,9 @@ class Application(Base):
     closed_at = Column(DateTime(timezone=True), nullable=True)
     closure_reason = Column(String(50), nullable=True)
     closure_remarks = Column(Text, nullable=True)
+
+    # Phase 7 (Innovation) additions:
+    risk_band = Column(String(20), default="LOW", nullable=True)
 
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -582,6 +590,7 @@ class Alert(Base):
     resolved_user = relationship("User", foreign_keys=[resolved_by])
     escalation_history = relationship("EscalationHistory", back_populates="alert", cascade="all, delete-orphan", order_by="desc(EscalationHistory.created_at)")
     notifications = relationship("Notification", back_populates="alert", cascade="all, delete-orphan")
+    priority_score = relationship("AlertPriorityScore", uselist=False, back_populates="alert", cascade="all, delete-orphan")
 
 
 class EscalationHistory(Base):
@@ -667,6 +676,16 @@ class CaseSummary(Base):
     risk_assessment = Column(Text, nullable=True)
     generated_by = Column(String(50), default="AI_ASSISTANT")
     last_generated_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    # Phase 7 structured summary fields
+    source_label = Column(String(50), default="template", nullable=True)
+    input_hash = Column(String(64), nullable=True)
+    timeline_highlights = Column(JSONB, default=list)
+    pending_items = Column(JSONB, default=list)
+    upcoming_deadlines = Column(JSONB, default=list)
+    suggested_next_steps = Column(JSONB, default=list)
+    risk_score_at_generation = Column(Float, nullable=True)
+    top_risk_factors = Column(JSONB, default=list)
 
     application = relationship("Application", back_populates="case_summary")
 
@@ -766,3 +785,41 @@ class CommitteeObservation(Base):
 
     application = relationship("Application", back_populates="committee_observations")
     user = relationship("User")
+
+
+class RiskScoreSnapshot(Base):
+    __tablename__ = "risk_score_snapshots"
+
+    id = Column(Integer, primary_key=True, index=True)
+    application_id = Column(Integer, ForeignKey("applications.id", ondelete="CASCADE"), nullable=False, index=True)
+    score = Column(Float, nullable=False)
+    band = Column(String(20), nullable=False)
+    factor_age = Column(Float, default=0.0, nullable=False)
+    factor_returns = Column(Float, default=0.0, nullable=False)
+    factor_workload = Column(Float, default=0.0, nullable=False)
+    factor_stage = Column(Float, default=0.0, nullable=False)
+    raw_age = Column(Float, nullable=True)
+    raw_returns = Column(Float, nullable=True)
+    raw_workload = Column(Float, nullable=True)
+    raw_stage = Column(Float, nullable=True)
+    weights = Column(JSONB, default=dict, nullable=False)
+    config_version = Column(String(50), nullable=True)
+    computed_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    application = relationship("Application")
+
+
+class AlertPriorityScore(Base):
+    __tablename__ = "alert_priority_scores"
+
+    id = Column(Integer, primary_key=True, index=True)
+    alert_id = Column(Integer, ForeignKey("alerts.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    priority_score = Column(Float, nullable=False)
+    factor_severity = Column(Float, default=0.0, nullable=False)
+    factor_overdue_days = Column(Float, default=0.0, nullable=False)
+    factor_escalation = Column(Float, default=0.0, nullable=False)
+    factor_risk_impact = Column(Float, default=0.0, nullable=False)
+    explanation = Column(Text, nullable=True)
+    computed_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    alert = relationship("Alert", back_populates="priority_score")

@@ -126,17 +126,28 @@ Timelines and thresholds are never hardcoded. They are stored in database table 
 }
 ```
 
-### Explanation of SLA Rules
+### Explanation of SLA Rules & Statutory Alert Engine
+
+The statutory alert engine evaluates **11 active rules** plus **1 advisory early-warning rule** (`RULE_RISK_HIGH`). Zero thresholds are hardcoded in application logic.
 
 1. **Scrutiny SLA (7 Days)**:
    - Scrutiny Officer must complete document evaluation within 7 calendar days of allocation.
-   - At Day 5 (80% SLA), a `NEAR_BREACH` warning is generated.
-   - At Day 8, an `OVERDUE` alert triggers and escalates to the Regional Head.
+   - At Day 5 (80% SLA), a `RULE_SCRUTINY_NEAR_BREACH` warning is generated (`MEDIUM`).
+   - At Day 8, an `RULE_SCRUTINY_OVERDUE` alert triggers (`HIGH`) and escalates to the Regional Head.
 2. **EVC Scheduling SLA (5 Days)**:
    - Once recommended for EVC, the coordinator must assign dates and experts within 5 calendar days.
-   - If not scheduled by Day 3, an `EVC_UNSCHEDULED` alert notifies the Regional Coordinator.
-3. **EVC Report Submission (3 Days)**:
-   - Following physical inspection, the committee report must be uploaded within 72 hours.
-4. **Document & Lease Expiry (90-Day Horizon)**:
-   - Automated nightly watcher scans leases, FDRs, and fire NOCs.
-   - First reminder at 90 days prior to expiry; escalates progressively at 60, 30, and 7 days.
+   - If not scheduled by Day 3, a `RULE_EVC_UNSCHEDULED` alert notifies the Regional Coordinator (`HIGH`).
+3. **EVC Visit Overdue SLA (Working Days)**:
+   - `RULE_EVC_VISIT_OVERDUE`: Scheduled inspection date has elapsed without an uploaded inspection report (`HIGH`). Auto-resolves immediately upon EVC report upload.
+4. **Conditional Undertaking Alerts (Calendar Days)**:
+   - `RULE_UNDERTAKING_DUE_15D`: Pending undertaking within 15 calendar days of statutory deadline (`MEDIUM`).
+   - `RULE_UNDERTAKING_OVERDUE`: Pending undertaking past due date and not verified (`HIGH`). Auto-resolves upon compliance verification.
+5. **Document Validity & Renewal Alerts (Calendar Days)**:
+   - `RULE_LEASE_90D`: Land lease or FDR expiring in $\le$ 90 calendar days (`MEDIUM`).
+   - `RULE_LEASE_30D`: Land lease or FDR expiring in $\le$ 30 calendar days (`HIGH`).
+   - `RULE_FIRE_NOC_EXPIRED`: Fire Safety NOC expired (`CRITICAL`).
+   - `RULE_DOCUMENT_EXPIRED`: Any prescribed lease, FDR, or statutory document past expiry without verified renewal (`HIGH`). Auto-resolves when officer verifies the renewed version.
+6. **Administrative Ping-Pong Control**:
+   - `RULE_MULTIPLE_REVERTS`: Application reverted $\ge$ 2 times, requiring Regional Head supervisory review (`HIGH`).
+7. **Advisory Early-Warning Notice (Phase 7 Innovation)**:
+   - `RULE_RISK_HIGH`: Advisory notice generated when an application's transparent 4-factor delay risk score reaches the High band before statutory SLA breach occurs (`INFO`/`LOW`). Carries the "Decision support only" badge and serves solely as proactive situational awareness.

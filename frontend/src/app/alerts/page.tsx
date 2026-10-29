@@ -13,6 +13,7 @@ import {
   AlertDetail,
   AlertSummary
 } from '@/lib/api';
+import { DecisionSupportBadge } from '@/components/ui/DecisionSupportBadge';
 import {
   AlertTriangle,
   ShieldAlert,
@@ -47,6 +48,12 @@ function AlertsContent() {
   const [statusFilter, setStatusFilter] = useState<string>('OPEN');
   const [tierFilter, setTierFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [sortBy, setSortBy] = useState<string>('priority');
+  const [sortOrder, setSortOrder] = useState<string>('desc');
+
+  // Digest generation
+  const [generatingDigest, setGeneratingDigest] = useState<boolean>(false);
+  const [digestSuccess, setDigestSuccess] = useState<string | null>(null);
 
   // Action modals/states
   const [ackRemarks, setAckRemarks] = useState<string>('');
@@ -63,7 +70,7 @@ function AlertsContent() {
     setLoading(true);
     try {
       const [alertsData, summaryData] = await Promise.all([
-        alertsApi.list(),
+        alertsApi.list({ sort_by: sortBy, sort_order: sortOrder }),
         alertsApi.getSummary(),
       ]);
       setAlerts(alertsData);
@@ -77,7 +84,22 @@ function AlertsContent() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [sortBy, sortOrder]);
+
+  const handleGenerateDigest = async () => {
+    setGeneratingDigest(true);
+    setDigestSuccess(null);
+    setActionError(null);
+    try {
+      const res = await alertsApi.generateDailyDigests();
+      setDigestSuccess(`Consolidated digest drafts generated for ${res.digests_created} officer(s) in email outbox.`);
+      setTimeout(() => setDigestSuccess(null), 6000);
+    } catch (err: any) {
+      setActionError(err.response?.data?.detail || 'Failed to generate digest drafts');
+    } finally {
+      setGeneratingDigest(false);
+    }
+  };
 
   // Check URL param ?id=
   useEffect(() => {
@@ -226,12 +248,35 @@ function AlertsContent() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Statutory Watcher & Compliance Alerts</h1>
-            <p className="text-sm text-slate-500 mt-1">
-              Deterministic rule evaluation, SLA breaches, multi-tier escalation, and verifiable audit trails.
+            <div className="flex items-center gap-2 mb-1">
+              <h1 className="text-2xl font-bold text-slate-900">Statutory Watcher & Compliance Alerts</h1>
+              <DecisionSupportBadge label="Smart Priority Ranking" />
+            </div>
+            <p className="text-sm text-slate-500">
+              Deterministic rule evaluation, SLA breaches, multi-tier escalation, and explainable multi-factor priority ranking.
             </p>
           </div>
+          {scope && scope.role === 'ADMIN' && (
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={handleGenerateDigest}
+                disabled={generatingDigest}
+                className="text-xs border-slate-300"
+              >
+                {generatingDigest ? 'Generating Outbox Digests...' : 'Draft Officer Daily Digests'}
+              </Button>
+            </div>
+          )}
         </div>
+
+        {digestSuccess && (
+          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-800 font-medium flex items-center justify-between">
+            <span>{digestSuccess}</span>
+            <button onClick={() => setDigestSuccess(null)} className="text-emerald-600 hover:text-emerald-900 font-bold ml-2">✕</button>
+          </div>
+        )}
 
         {/* Real-time Summary Cards */}
         {summary && (
@@ -276,6 +321,18 @@ function AlertsContent() {
                   className="w-full pl-9 pr-3 py-1.5 text-xs rounded-md border border-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
+
+              {/* Sort Order Selector (Phase 7 Smart Ranking) */}
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="px-2.5 py-1.5 text-xs rounded-md border border-slate-300 bg-white font-medium text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="priority">Sort: Smart Priority (Default)</option>
+                <option value="severity">Sort: Severity Level</option>
+                <option value="escalation_tier">Sort: Escalation Tier</option>
+                <option value="created_at">Sort: Created Timestamp</option>
+              </select>
 
               {/* Status Filter */}
               <select
@@ -330,6 +387,7 @@ function AlertsContent() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
+                  <th className="py-3 px-4">Priority</th>
                   <th className="py-3 px-4">Severity</th>
                   <th className="py-3 px-4">Rule & Alert Title</th>
                   <th className="py-3 px-4">Application / Entity</th>
@@ -342,13 +400,13 @@ function AlertsContent() {
               <tbody className="divide-y divide-slate-100 text-xs">
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-slate-500">
+                    <td colSpan={8} className="py-8 text-center text-slate-500">
                       Loading compliance alerts...
                     </td>
                   </tr>
                 ) : filteredAlerts.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-slate-500">
+                    <td colSpan={8} className="py-12 text-center text-slate-500">
                       <CheckCircle2 className="w-8 h-8 mx-auto text-emerald-500 mb-2" />
                       <p className="font-medium text-slate-700">No alerts match the chosen filters.</p>
                       <p className="text-slate-400 text-[11px] mt-0.5">All regulatory timelines and SLA standards intact.</p>
@@ -363,6 +421,11 @@ function AlertsContent() {
                         selectedAlertId === alert.id ? 'bg-blue-50/50' : ''
                       }`}
                     >
+                      <td className="py-3 px-4">
+                        <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-indigo-50 text-indigo-900 border border-indigo-200">
+                          {alert.priority_score ?? 0}
+                        </span>
+                      </td>
                       <td className="py-3 px-4 shrink-0">
                         <Badge variant={severityBadgeVariant[alert.severity] || 'neutral'}>
                           {alert.severity}
@@ -371,6 +434,12 @@ function AlertsContent() {
                       <td className="py-3 px-4">
                         <div className="font-medium text-slate-900">{alert.title}</div>
                         <div className="text-[11px] text-slate-400 font-mono mt-0.5">{alert.rule_code}</div>
+                        {alert.priority_explanation && (
+                          <div className="text-[11px] text-indigo-800 bg-indigo-50/70 rounded px-2 py-1 mt-1.5 border border-indigo-100 font-sans">
+                            <span className="font-semibold text-indigo-900">Rank rationale: </span>
+                            {alert.priority_explanation}
+                          </div>
+                        )}
                       </td>
                       <td className="py-3 px-4">
                         {alert.application_number ? (

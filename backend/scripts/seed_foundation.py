@@ -220,7 +220,19 @@ def seed_foundation():
              "APH 2026 Chapter III Clause 3.2", "Conditional undertaking condition due in 15 days for {institution}.", "CALENDAR"),
             ("RULE_MULTIPLE_REVERTS", "Repeated Reverts Escalation", AlertTypeEnum.MULTIPLE_REVERTS, "APPLICATION",
              {"field": "revert_count", "operator": ">=", "value": 2}, AlertSeverityEnum.HIGH,
-             "APH 2026 Chapter II Clause 2.5", "Application {app_num} has been reverted 2 or more times. Requires supervision.", "WORKING")
+             "APH 2026 Chapter II Clause 2.5", "Application {app_num} has been reverted 2 or more times. Requires supervision.", "WORKING"),
+            ("RULE_EVC_VISIT_OVERDUE", "EVC Visit Report Overdue", AlertTypeEnum.EVC_VISIT_OVERDUE, "APPLICATION",
+             {"field": "visit_overdue_days", "operator": ">=", "value": 0}, AlertSeverityEnum.HIGH,
+             "APH 2026 Chapter II Clause 2.7", "Scheduled EVC visit date has passed without inspection report for {app_num}.", "WORKING"),
+            ("RULE_UNDERTAKING_OVERDUE", "Conditional Undertaking Compliance Overdue", AlertTypeEnum.UNDERTAKING_OVERDUE, "UNDERTAKING",
+             {"field": "days_overdue", "operator": ">=", "value": 0}, AlertSeverityEnum.HIGH,
+             "APH 2026 Chapter III Clause 3.4", "Undertaking deadline passed without compliance verification for {institution}.", "CALENDAR"),
+            ("RULE_DOCUMENT_EXPIRED", "Prescribed Document Expired Violation", AlertTypeEnum.DOCUMENT_EXPIRED, "DOCUMENT",
+             {"field": "is_expired", "operator": "==", "value": True}, AlertSeverityEnum.HIGH,
+             "APH 2026 Chapter I Clause 1.4(h)", "Prescribed document expired without verified renewal for {institution}.", "CALENDAR"),
+            ("RULE_RISK_HIGH", "High Delay Risk Early-Warning Notice", AlertTypeEnum.RISK_HIGH, "APPLICATION",
+             {"field": "risk_band", "operator": "==", "value": "HIGH"}, AlertSeverityEnum.INFO,
+             "APH 2026 Chapter II Clause 2.1 Advisory", "Application {app_num} flagged as HIGH delay risk before SLA deadline breach.", "WORKING"),
         ]
 
         for code, name, atype, etype, cond, sev, aph, tmpl, day_basis in alert_rules_data:
