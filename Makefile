@@ -99,7 +99,13 @@ final-check:
 	@echo "  ✓ ALL 7 FINAL CHECKS PASSED WITH ZERO ERRORS (RELEASE READY v1.0)  "
 	@echo "======================================================================"
 
-# 17. Start Development Servers (Backend & Frontend)
+# 17. Safe Git-Based Release Packaging
+package:
+	git archive --format=zip --output=sih26262_release.zip HEAD
+	@echo "Created sih26262_release.zip via git archive"
+	backend/.venv/bin/python scripts/verify_package.py sih26262_release.zip
+
+# 18. Start Development Servers (Backend & Frontend)
 dev:
 	@echo "Starting Backend on http://localhost:8000 and Frontend on http://localhost:3001..."
 	(trap 'kill 0' SIGINT; \

@@ -62,4 +62,4 @@ This traceability matrix maps every statutory requirement from the Smart India H
 | **2. Technical Feasibility** | Clean decoupled 3-tier architecture: FastAPI + PostgreSQL + Next.js; sub-65ms endpoint latencies. | Profiled in Phase 9 (`backend/scripts/profile_endpoints.py`) |
 | **3. Regulatory Compliance (APH)** | APH statutory clause citation on every alert; working days calendar; deficiency return limits. | Step 4 (Alert Drawer) & Step 5 (Return tags) |
 | **4. Security & Data Integrity** | AES-256-GCM file encryption; SHA-256 blockchain-style audit ledger; database-level immutability trigger. | Step 8 & Optional Security Deep-Dive |
-| **5. Usability & User Experience** | Calm official government aesthetic; zero emoji icons; responsive tablet/mobile layout; 1-click demo personas. | Presenter Guide (`/demo`) & Live UI |
+| **5. Usability & User Experience** | Calm institutional aesthetic; neutral geometric icons; responsive tablet/mobile layout; 1-click demo personas. | Presenter Guide (`/demo`) & Live UI |

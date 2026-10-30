@@ -100,7 +100,7 @@ Every upload undergoes multi-stage validation in `FileStorageService`:
 
 ### 15. What would a real production deployment realistically need?
 **Answer:**
-While this solution is production-architected, transitioning to national deployment would involve:
+While this working prototype demonstrates the full statutory workflow and security logic, transitioning to live national deployment would involve:
 1. **Real AICTE Single Sign-On (SSO):** Integration with Parichay / Jan Parichay (National Single Sign-On for Indian Government).
 2. **Real Document Signatures:** Integration with India PKI e-Sign (Aadhaar / DSC digital signing for approval orders).
 3. **Cloud Infrastructure:** Kubernetes (EKS/GKE) with PostgreSQL read-replicas, Redis for distributed caching, and AWS S3/GCS with KMS key rotation for encrypted document storage.

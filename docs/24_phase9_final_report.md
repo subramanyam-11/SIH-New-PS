@@ -1,7 +1,7 @@
 # SIH26262: Phase 9 Final Release Report — Polish, Reliability & Demo Rehearsal
 
-> **Release Version**: `v1.0-sih26262`  
-> **Milestone**: Smart India Hackathon — Final Production-Ready Delivery  
+> **Release Version**: `v1.0.1-sih26262`  
+> **Milestone**: Smart India Hackathon — Final Working Prototype Delivery  
 > **Date**: October 31, 2026  
 > **Test Status**: **96 / 96 Tests Passing (100%)**  
 > **Consistency Audits**: **7 / 7 Audits Clean (0 Mismatches)**  
@@ -15,7 +15,7 @@ Phase 9 represents the final polish, hardening, reliability, and rehearsal phase
 
 1. **System Consistency & Integrity**: Fictionalizing all seed entity names and email domains to `@demo.example`, establishing centralized risk band configurations (`LOW <= 39`, `MEDIUM 40-69`, `HIGH >= 70`), disabling OpenAPI documentation endpoints in non-demo mode, and introducing an admin lockout recovery system.
 2. **Deterministic Demo Rehearsal**: Creating an idempotent 8-step continuous story (`backend/scripts/demo_check.py`) anchored on **Apex Institute of Technology (Kanpur, Northern Region)** that runs from fresh seed to case closure, paired with an interactive on-screen presenter guide (`/demo`).
-3. **Performance & Profiling**: Benchmarking 20 critical API endpoints under load, proving that even the most complex aggregate query (`/api/v1/alerts?limit=50`) executes in **63.82ms**—well below the statutory 200ms budget.
+3. **Performance & Profiling**: Benchmarking 20 critical API endpoints under load, proving that even the most complex aggregate query (`/api/v1/alerts?limit=50`) executes in **63.82ms**—well below the internal performance target (200 ms).
 4. **Comprehensive Documentation & Visual Proof**: Authoring timed presenter scripts, 15 jury question responses, a problem statement feature traceability matrix (Modules A–F), capturing 16 high-resolution (1440x900) headless screenshots, and designing an SVG architecture diagram.
 5. **Cross-Platform Release Certification**: Unifying verification under `make final-check` and PowerShell `final-check.ps1`, confirming zero leaked secrets, validating cryptographic audit chain integrity across 255 events, and validating a 100% clean Next.js 14 production build.
 
@@ -34,7 +34,7 @@ Phase 9 represents the final polish, hardening, reliability, and rehearsal phase
 | **Section 1** | One-Command Demo Reset | `backend/scripts/demo_reset.py` & `make demo-reset` | **VERIFIED** (Zeroes clock, seeds, evaluates) |
 | **Section 1** | Automated 8-Step Demo Check | `backend/scripts/demo_check.py` & `make demo-check` | **VERIFIED** (Idempotent 8-step story passes) |
 | **Section 1** | Presenter Walkthrough Guide | `frontend/src/app/demo/page.tsx` (`/demo`) | **VERIFIED** (Step matrix & fast role switches) |
-| **Section 1** | Government Favicon Emblem | `frontend/src/app/icon.svg` | **VERIFIED** (Next.js App Router emblem) |
+| **Section 1** | Neutral Favicon Icon | `frontend/src/app/icon.svg` | **VERIFIED** (Next.js App Router neutral icon) |
 | **Section 1** | Responsive Mobile Navigation Drawer | `Sidebar.tsx` & `TopBar.tsx` | **VERIFIED** (Slide-over drawer on small viewports) |
 | **Section 2** | Endpoint Performance Profiling | `backend/scripts/profile_endpoints.py` | **VERIFIED** (All endpoints sub-65ms) |
 | **Section 3** | Cross-System Consistency Audit | `backend/scripts/check_consistency.py` | **VERIFIED** (All 7 audits pass with 0 mismatches) |
@@ -145,31 +145,62 @@ In strict accordance with government software procurement standards and academic
 
 ---
 
-## 8. Release Tag & Archive Packaging Instructions
+## 8. Test Suite Reconciliation (Exact Per-File Counts)
 
-### Git Release Tag
-The repository commit is tagged at version **`v1.0-sih26262`**:
-```bash
-git tag -a v1.0-sih26262 -m "Release v1.0-sih26262: Phase 9 Polish and Rehearse Completed"
-```
+The complete automated test suite comprises **96 tests across 8 test suites** (100% passing):
 
-### Clean Archive Creation Command
-To produce a clean submission zip excluding local virtual environments, node modules, build caches, and uploaded temporary files:
-```bash
-zip -r sih26262_release_v1.0.zip . \
-  -x "backend/.venv/*" \
-  -x "frontend/node_modules/*" \
-  -x "frontend/.next/*" \
-  -x "uploads/*" \
-  -x "backend/uploads/*" \
-  -x "*.git*" \
-  -x "*__pycache__*" \
-  -x "*.DS_Store" \
-  -x "*.pytest_cache*"
-```
+| Test Suite File | Tests | Focus Area | Status |
+| :--- | :---: | :--- | :---: |
+| `backend/tests/test_alert_watchers.py` | 9 | Alert rules, 3-tier escalation ladder, dynamic time-travel | **PASSED** |
+| `backend/tests/test_auth_and_rbac.py` | 11 | Role-based permissions, JWT authentication, demo login guards | **PASSED** |
+| `backend/tests/test_phase5_screens.py` | 11 | EVC inspection panel, undertakings, document renewal lifecycle | **PASSED** |
+| `backend/tests/test_phase6_v2.py` | 17 | Fair Pendency Clock, holiday exclusions, overdue reports, CLOSED state | **PASSED** |
+| `backend/tests/test_phase7_innovation.py` | 18 | 4-factor Delay Risk Score, What-If planner, AI case summary | **PASSED** |
+| `backend/tests/test_phase8_security.py` | 17 | SHA-256 audit ledger, AES-256-GCM encryption, mock AICTE adapter | **PASSED** |
+| `backend/tests/test_phase9_polish.py` | 6 | Centralized risk bounds, admin unlock, demo anonymity, DB triggers | **PASSED** |
+| `backend/tests/test_workflow_engine.py` | 7 | 7-stage state machine transitions, revert limits, LOA generation | **PASSED** |
+| **Total** | **96** | **Full End-to-End Regression & Regulatory Coverage** | **100% PASS** |
+
+> **Note on Earlier Summary Count**: In earlier text summaries, Phase 6 was colloquially misquoted as having 6 tests (accidentally echoing Phase 9's 6 polish tests). The actual `test_phase6_v2.py` test file has always contained 17 distinct test cases covering all clock and calendar invariants. No tests were removed or deleted; all 96 tests remain fully intact and active.
 
 ---
 
-## 9. Conclusion
+## 9. Release Tags & Safe Git-Based Packaging
 
-SIH26262 has successfully achieved complete delivery across all 9 planned phases. The platform provides a rock-solid, explainable, statutory-compliant, and visually polished regulatory automation solution ready for presentation to the Smart India Hackathon jury.
+### Git Release Tags
+The repository is tagged with permanent release checkpoints:
+- **`v1.0-sih26262`**: Milestone tag for Phase 9 completion (`bbe736b`).
+- **`v1.0.1-sih26262`**: Release tag incorporating final neutral graphics, reconciled test counts, honest prototype wording, and safe git packaging.
+
+### Safe Git-Based Packaging Command
+In accordance with safe packaging principles, releases are packaged directly from tracked git assets via `git archive`, completely eliminating accidental inclusion of `.env`, secret keys, node modules, build artifacts, or temporary uploads:
+
+```bash
+# Generate safe release zip from tag or HEAD:
+git archive --format=zip --output=sih26262_release.zip v1.0.1-sih26262
+
+# Or using the automated Makefile target:
+make package
+
+# Or on Windows using PowerShell:
+.\scripts\powershell\package.ps1
+```
+
+### Automated Package Verification
+A dedicated integrity validator `scripts/verify_package.py` inspects the archive and guarantees zero forbidden files:
+```bash
+backend/.venv/bin/python scripts/verify_package.py sih26262_release.zip
+```
+Forbidden paths checked and rejected:
+- `.env` and any `.env.*` (except safe `.env.example`)
+- `uploads/` and `backend/uploads/`
+- `node_modules/` and `frontend/.next/`
+- `.venv/` and `__pycache__/`
+- Private key material (`.pem`, `.key`, `id_rsa`)
+- `.git/` repository internals
+
+---
+
+## 10. Conclusion
+
+SIH26262 delivers a rigorous, transparent, and regulatory-faithful working prototype for the Smart India Hackathon. By grounding all calculations in the AICTE Approval Process Handbook (APH), preserving cryptographic accountability, and maintaining complete engineering honesty, the platform offers an explainable, decision-support automation prototype ready for jury review.

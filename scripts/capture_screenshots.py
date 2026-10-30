@@ -42,15 +42,20 @@ def capture_all():
     print(f"  Output Dir: {SCREENSHOT_DIR}")
     print("=" * 70)
 
+    targets = set(sys.argv[1:])
+    def should_capture(name):
+        return len(targets) == 0 or name in targets or name.replace(".png", "") in targets or any(t in name for t in targets)
+
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(viewport={"width": 1440, "height": 900})
         page = context.new_page()
 
         # 01. Login with demo personas
-        print("[1/16] Capturing Login page with demo persona chips...")
-        safe_goto(page, f"{BASE_URL}/login")
-        page.screenshot(path=os.path.join(SCREENSHOT_DIR, "01_login_personas.png"))
+        if should_capture("01_login_personas.png"):
+            print("[1/16] Capturing Login page with demo persona chips...")
+            safe_goto(page, f"{BASE_URL}/login")
+            page.screenshot(path=os.path.join(SCREENSHOT_DIR, "01_login_personas.png"))
 
         # 02. Role Dashboard (Regional Head North)
         print("[2/16] Capturing Regional Dashboard with alert and risk cards...")

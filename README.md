@@ -35,11 +35,11 @@ Full architectural specification available at [`docs/15_architecture.md`](docs/1
 | Module | Core Functionality | Primary Screens | Backend Engine / APIs | Test Coverage |
 | :--- | :--- | :--- | :--- | :--- |
 | **Module A** | Core Statutory Workflow & 7-Stage State Machine | `/applications`, `/applications/[id]` | `WorkflowEngine`, `/api/v1/applications` | `test_workflow_engine.py` (7 tests) |
-| **Module B** | Real-Time Delay Detection & Fair Pendency Clock | `/`, `/applications/[id]`, `/reports` | `WorkingDayService`, `ClockService` | `test_phase6_v2.py` (6 tests) |
+| **Module B** | Real-Time Delay Detection & Fair Pendency Clock | `/`, `/applications/[id]`, `/reports` | `WorkingDayService`, `ClockService` | `test_phase6_v2.py` (17 tests) |
 | **Module C** | Explainable Alerts & 2-Tier Automated Escalations | `/alerts`, `/escalation-matrix` | `AlertEngine`, `/api/v1/alerts` | `test_alert_watchers.py` (9 tests) |
-| **Module D** | Predictive Delay Risk Scoring & Bottleneck Heat Grid | `/bottlenecks`, `/planner` | `RiskScoreService`, `/api/v1/risk` | `test_phase7_innovation.py` (17 tests) |
-| **Module E** | Institution Portal, Deficiencies & Undertakings | `/portal`, `/undertakings`, `/document-validity` | `UndertakingService`, `DocumentService` | `test_phase5_screens.py` (12 tests) |
-| **Module F** | Cryptographic Ledger, File Encryption & Mock National AICTE | `/admin/audit`, `/admin/retention`, `/integration` | `AuditService`, `FileStorageService`, `AicteAdapter` | `test_phase8_security.py` (19 tests) |
+| **Module D** | Predictive Delay Risk Scoring & Bottleneck Heat Grid | `/bottlenecks`, `/planner` | `RiskScoreService`, `/api/v1/risk` | `test_phase7_innovation.py` (18 tests) |
+| **Module E** | Institution Portal, Deficiencies & Undertakings | `/portal`, `/undertakings`, `/document-validity` | `UndertakingService`, `DocumentService` | `test_phase5_screens.py` (11 tests) |
+| **Module F** | Cryptographic Ledger, File Encryption & Mock National AICTE | `/admin/audit`, `/admin/retention`, `/integration` | `AuditService`, `FileStorageService`, `AicteAdapter` | `test_phase8_security.py` (17 tests), `test_auth_and_rbac.py` (11 tests), `test_phase9_polish.py` (6 tests) |
 
 Detailed feature mapping available in [`docs/22_feature_map.md`](docs/22_feature_map.md).
 
@@ -123,7 +123,7 @@ When visiting `http://localhost:3001/login`, clicking any persona badge instantl
 
 In compliance with hackathon guidelines and regulatory integrity principles:
 
-1. **Production-Ready & Fully Real**:
+1. **Working Prototype & Fully Functional**:
    - PostgreSQL 16 database schema with 17 normalized relational tables and foreign keys.
    - 7-stage statutory workflow engine with state transition validation and role enforcement.
    - Fair Pendency Clock calculating actual working days excluding Gazette holidays and Sundays.
@@ -180,16 +180,20 @@ All planning specifications and Phase 2 reports are available under [`docs/`](fi
 ## 5. Running Tests and Verification
 
 ```bash
-# Run backend test suite (73 unit, integration, RBAC, workflow engine, alert watcher, Phase 6, and Phase 7 innovation tests)
+# Run backend test suite (96 automated unit, integration, RBAC, workflow, alert, and innovation tests)
 make test
 # Or: cd backend && .venv/bin/pytest -v
 
-# Run automated end-to-end smoke test suite (28 comprehensive checks covering Phases 1 through 7)
+# Run automated end-to-end smoke test suite (28 comprehensive checks covering Modules A through F)
 make smoke
 # Or: ./scripts/smoke_test.sh
 
 # Re-seed demo dataset (60 applications, clock segments, committee assignments, holidays, alerts)
 make seed-demo
+
+# Create clean release archive using git archive (excludes .env, uploads, node_modules, .venv)
+make package
+# Or: git archive --format=zip --output=sih26262_release.zip HEAD
 ```
 
 ---
@@ -242,25 +246,6 @@ SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=demo@demo.example
 SMTP_PASSWORD=secret
-```
-
----
-
-14. **[12. Phase 5 Operational Screens Report](file:///Users/subramanyam/Sih%20new/docs/12_phase5_screens_report.md)** - Detailed report on EVC queue, Undertakings, Document validity, Executive reports, and Institution Portal.
-
----
-
-## 5. Running Tests and Verification
-
-```bash
-# Run backend test suite (38 unit, RBAC, workflow engine, alert watchers, and Phase 5 screen tests)
-make test
-
-# Execute automated smoke test suite (17 end-to-end integration steps)
-./scripts/smoke_test.sh
-
-# Re-seed demo database with full lived-in dataset
-make seed-demo
 ```
 
 ---
@@ -323,23 +308,6 @@ make seed-demo
 3. Navigate to **Applications** (`/applications/1`):
    - Click **Record Statutory Decision**, select `APPROVE`, and record formal council justification.
    - Click **View Sample Order (LoA)** to inspect the generated Letter of Approval with visible `SAMPLE` watermark.
-
----
-
-## 7. Email Outbox Configuration (`EMAIL_SEND_ENABLED`)
-
-In `.env`:
-```ini
-# When false (default for hackathon demo): emails stay in database outbox as SUPPRESSED
-# and are viewable in the app at /admin/outbox without sending actual SMTP traffic.
-EMAIL_SEND_ENABLED=false
-
-# When true: emails are dispatched through configured SMTP credentials
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=demo@demo.example
-SMTP_PASSWORD=secret
-```
 
 ---
 
@@ -418,7 +386,7 @@ make verify-audit
 # Export current FastAPI OpenAPI specification schema
 make openapi
 
-# Execute all 90 automated regression tests and generate docs/16_test_report.md
+# Execute all 96 automated regression tests and generate docs/16_test_report.md
 make test-report
 ```
 

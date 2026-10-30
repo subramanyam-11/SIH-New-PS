@@ -45,9 +45,12 @@
 
   <!-- HEADER BAR -->
   <rect x="40" y="25" width="1120" height="75" rx="8" fill="url(#headerGrad)" stroke="#334155" stroke-width="1.5" filter="url(#dropShadow)"/>
-  <circle cx="80" cy="62" r="22" fill="#d97706" />
-  <path d="M 70 68 L 80 50 L 90 68 Z" fill="#0f2d59" />
-  <circle cx="80" cy="61" r="5" fill="#ffffff" />
+  <rect x="58" y="42" width="44" height="40" rx="8" fill="#1e293b" stroke="#38bdf8" stroke-width="1.5"/>
+  <path d="M 68 62 L 80 52 L 92 62 L 80 72 Z" fill="none" stroke="#38bdf8" stroke-width="1.5" stroke-linejoin="round"/>
+  <circle cx="80" cy="52" r="2" fill="#f59e0b"/>
+  <circle cx="92" cy="62" r="2" fill="#38bdf8"/>
+  <circle cx="80" cy="72" r="2" fill="#10b981"/>
+  <circle cx="68" cy="62" r="2" fill="#38bdf8"/>
   
   <text x="120" y="55" fill="#f8fafc" font-size="20" font-weight="700" letter-spacing="0.5">SIH26262: AICTE APPROVAL WORKFLOW &amp; COMPLIANCE AUTOMATION</text>
   <text x="120" y="78" fill="#94a3b8" font-size="12" font-weight="500">SYSTEM ARCHITECTURE (THREE-TIER REGULATORY GOVERNANCE PLATFORM)</text>

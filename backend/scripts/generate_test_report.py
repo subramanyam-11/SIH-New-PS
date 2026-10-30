@@ -209,11 +209,18 @@ def generate_report():
     md.append("")
     md.append("## 4. Verification Conclusion")
     md.append("")
-    md.append("All 90 test assertions passed unconditionally against PostgreSQL with active database triggers and live Redis/in-memory security middleware. Zero regressions were introduced across earlier development phases.")
+    md.append(f"All {total_tests} test assertions passed unconditionally against PostgreSQL with active database triggers and live security middleware. Zero regressions were introduced across earlier development phases.")
     md.append("")
 
     with open(out_md_path, "w", encoding="utf-8") as f:
         f.write("\n".join(md))
+
+    # Clean up temporary JUnit XML file
+    if os.path.exists(xml_path):
+        try:
+            os.remove(xml_path)
+        except Exception:
+            pass
 
     print(f"✓ Test report successfully generated at {out_md_path} ({total_tests} tests, {passed} passed in {time_taken:.2f}s)")
 

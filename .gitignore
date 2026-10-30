@@ -57,7 +57,8 @@ Thumbs.db
 
 # IDEs
 .idea/
-.vscode/
+.vscode/*
+!.vscode/settings.json
 *.swp
 *.swo
 
@@ -68,3 +69,6 @@ postgres_data/
 uploads/
 backend/uploads/
 !backend/uploads/samples/
+
+# Archives and Packages
+*.zip

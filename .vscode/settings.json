@@ -1,0 +1,7 @@
+{
+    "makefile.configureOnOpen": true,
+    "python.defaultInterpreterPath": "${workspaceFolder}/backend/.venv",
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/backend"
+    ]
+}
