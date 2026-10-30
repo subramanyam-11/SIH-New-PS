@@ -241,7 +241,7 @@ def test_bottleneck_finder_aggregates_and_pause_separation():
 def test_bottleneck_finder_regional_scoping():
     """Regional Head can only see own region bottlenecks; Bureau Officer and Admin see cross-region."""
     # Regional Head (South - region_id=2 or 1)
-    reg_token = get_token("REGIONAL_HEAD", email="ro.south@aicte.gov.in")
+    reg_token = get_token("REGIONAL_HEAD", email="ro.south@demo.example")
     reg_res = client.get("/api/v1/bottlenecks", headers={"Authorization": f"Bearer {reg_token}"})
     assert reg_res.status_code == 200
     reg_data = reg_res.json()
@@ -372,7 +372,7 @@ def test_whatif_planner_api_access_control():
     assert res.status_code == 200
 
     # Institution user must be rejected
-    inst_token = get_token("INSTITUTION_USER", email="principal@apexkanpur.edu")
+    inst_token = get_token("INSTITUTION_USER", email="principal@apexkanpur.demo.example")
     inst_res = client.get("/api/v1/planner/simulate", headers={"Authorization": f"Bearer {inst_token}"})
     assert inst_res.status_code == 403
 

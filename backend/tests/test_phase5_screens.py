@@ -183,8 +183,8 @@ def test_evc_role_restrictions():
 
 def test_undertaking_evidence_submission_and_verification():
     """Institution uploads compliance evidence; Scrutiny Officer verifies."""
-    inst_headers = auth_header("INSTITUTION_USER", email="principal@apexkanpur.edu")
-    officer_headers = auth_header("SCRUTINY_OFFICER", email="scrutiny1@aicte.gov.in")
+    inst_headers = auth_header("INSTITUTION_USER", email="principal@apexkanpur.demo.example")
+    officer_headers = auth_header("SCRUTINY_OFFICER", email="scrutiny1@demo.example")
 
     db: Session = SessionLocal()
     try:
@@ -227,7 +227,7 @@ def test_undertaking_evidence_submission_and_verification():
 
 def test_undertaking_escalation_after_two_rejections():
     """Two rejections trigger automatic escalation to Competent Authority."""
-    officer_headers = auth_header("SCRUTINY_OFFICER", email="scrutiny1@aicte.gov.in")
+    officer_headers = auth_header("SCRUTINY_OFFICER", email="scrutiny1@demo.example")
     db: Session = SessionLocal()
     try:
         ut = db.query(Undertaking).filter(Undertaking.institution_id == 1).first()
@@ -246,7 +246,7 @@ def test_undertaking_escalation_after_two_rejections():
         assert data["status"] == "ESCALATED"
         assert data["rejection_count"] == 2
         assert data["escalated_to_tier"] == 3
-        assert "Escalated for Apex Council determination" in data["escalation_reason"]
+        assert "Escalated for Competent Authority determination" in data["escalation_reason"]
     finally:
         db.close()
 
@@ -257,12 +257,27 @@ def test_undertaking_escalation_after_two_rejections():
 
 def test_document_renewal_creates_new_version_and_supersedes_old():
     """Document renewal creates v2 in RENEWAL_SUBMITTED; verification supersedes v1."""
-    inst_headers = auth_header("INSTITUTION_USER", email="principal@apexkanpur.edu")
-    officer_headers = auth_header("SCRUTINY_OFFICER", email="scrutiny1@aicte.gov.in")
+    inst_headers = auth_header("INSTITUTION_USER", email="principal@apexkanpur.demo.example")
+    officer_headers = auth_header("SCRUTINY_OFFICER", email="scrutiny1@demo.example")
 
     db: Session = SessionLocal()
     try:
         doc = db.query(Document).filter(Document.institution_id == 1, Document.status == DocumentStatusEnum.VALID).first()
+        if not doc:
+            doc = Document(
+                institution_id=1,
+                document_type=DocumentTypeEnum.FIRE_SAFETY_NOC,
+                document_number="FS/TEST/VALID/001",
+                title="Test Valid Fire Safety NOC",
+                issuing_authority="Chief Fire Officer, Kanpur",
+                issue_date=date.today() - timedelta(days=100),
+                expiry_date=date.today() + timedelta(days=265),
+                status=DocumentStatusEnum.VALID,
+                version_number=1,
+            )
+            db.add(doc)
+            db.commit()
+            db.refresh(doc)
         assert doc is not None
 
         # 1. Upload renewal
@@ -310,7 +325,7 @@ def test_document_renewal_creates_new_version_and_supersedes_old():
 
 def test_institution_user_strict_scoping():
     """Institution user must get 403 or 404 when accessing another institution's records."""
-    inst1_headers = auth_header("INSTITUTION_USER", email="principal@apexkanpur.edu") # Institution 1
+    inst1_headers = auth_header("INSTITUTION_USER", email="principal@apexkanpur.demo.example") # Institution 1
 
     db: Session = SessionLocal()
     try:
@@ -343,7 +358,7 @@ def test_institution_user_strict_scoping():
 
 def test_reports_database_calculations_and_exports():
     """All 5 reports return database-calculated values, CSV export works, and PDF export produces valid files."""
-    ro_headers = auth_header("REGIONAL_HEAD", email="ro.north@aicte.gov.in")
+    ro_headers = auth_header("REGIONAL_HEAD", email="ro.north@demo.example")
 
     # 1. Pendency report
     res_pend = client.get("/api/v1/reports/pendency", headers=ro_headers)

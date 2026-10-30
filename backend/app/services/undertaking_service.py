@@ -159,7 +159,7 @@ class UndertakingService:
             if ut.rejection_count >= thresholds["max_rejections"]:
                 ut.status = UndertakingStatusEnum.ESCALATED
                 ut.escalated_to_tier = 3 # Competent Authority
-                ut.escalation_reason = f"Rejected {ut.rejection_count} times by scrutiny desk. Escalated for Apex Council determination."
+                ut.escalation_reason = f"Rejected {ut.rejection_count} times by scrutiny desk. Escalated for Competent Authority determination."
 
                 # Notify institution of escalation
                 inst = ut.institution

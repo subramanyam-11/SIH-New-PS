@@ -54,7 +54,7 @@ def test_pendency_clock_pause_on_return():
     db: Session = SessionLocal()
     try:
         app = db.query(Application).filter(Application.application_number == "AICTE/2026/APP-10001").first()
-        admin_user = db.query(User).filter(User.username == "admin@aicte.gov.in").first()
+        admin_user = db.query(User).filter(User.username == "admin@demo.example").first()
         
         # Ensure it starts in SCRUTINY with WITH_AICTE
         app.case_holder = "WITH_AICTE"
@@ -94,7 +94,7 @@ def test_pendency_clock_resume_on_institution_response():
     db: Session = SessionLocal()
     try:
         app = db.query(Application).filter(Application.application_number == "AICTE/2026/APP-10001").first()
-        admin_user = db.query(User).filter(User.username == "admin@aicte.gov.in").first()
+        admin_user = db.query(User).filter(User.username == "admin@demo.example").first()
 
         # Application must be WITH_INSTITUTION
         app.case_holder = "WITH_INSTITUTION"
@@ -131,7 +131,7 @@ def test_pendency_clock_multiple_pause_cycles():
     db: Session = SessionLocal()
     try:
         app = db.query(Application).filter(Application.application_number == "AICTE/2026/APP-10002").first()
-        admin_user = db.query(User).filter(User.username == "admin@aicte.gov.in").first()
+        admin_user = db.query(User).filter(User.username == "admin@demo.example").first()
 
         # Cycle 1: Return
         app.case_holder = "WITH_AICTE"
@@ -221,7 +221,7 @@ def test_pendency_clock_no_alerts_while_paused_and_auto_resolve():
     db: Session = SessionLocal()
     try:
         app = db.query(Application).filter(Application.application_number == "AICTE/2026/APP-10004").first()
-        admin_user = db.query(User).filter(User.username == "admin@aicte.gov.in").first()
+        admin_user = db.query(User).filter(User.username == "admin@demo.example").first()
         rule = db.query(AlertRule).filter(AlertRule.code == "RULE_SCRUTINY_NEAR_BREACH").first()
 
         # Seed an active near breach alert for this application
@@ -505,7 +505,7 @@ def test_case_closure_role_restrictions():
 
 def test_bureau_officer_read_access_and_mutation_restrictions():
     """Bureau officer can view pendency and alerts across regions, but cannot complete stage, decide, or close."""
-    token = get_token("BUREAU_OFFICER", "bureau.officer@aicte.gov.in")
+    token = get_token("BUREAU_OFFICER", "bureau.officer@demo.example")
     
     # 1. Can view pendency report
     res_rep = client.get("/api/v1/reports/pendency", headers={"Authorization": f"Bearer {token}"})
@@ -555,7 +555,7 @@ def test_bureau_officer_read_access_and_mutation_restrictions():
 
 def test_committee_member_assigned_cases_and_advisory_recommendation():
     """Committee members see only their assigned cases and submit non-binding advisory recommendations."""
-    token = get_token("COMMITTEE_MEMBER", "evc.member@aicte.gov.in")
+    token = get_token("COMMITTEE_MEMBER", "evc.member@demo.example")
 
     # 1. My cases endpoint lists assigned cases
     res_cases = client.get("/api/v1/committee/my-cases", headers={"Authorization": f"Bearer {token}"})

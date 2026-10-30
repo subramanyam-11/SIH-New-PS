@@ -1,65 +1,144 @@
 # SIH26262: Integrated AICTE Approval Workflow Automation, Compliance Monitoring and Alert Management System
 
-> **A secure, intelligent, and configurable regulatory governance platform for the All India Council for Technical Education (AICTE)**. Built for the Smart India Hackathon.
+> **A secure, intelligent, and transparent regulatory governance platform for the All India Council for Technical Education (AICTE)**. Built for the Smart India Hackathon.
+
+[![Final Release Status](https://img.shields.io/badge/Release-v1.0--sih26262-emerald?style=for-the-badge)](https://github.com/subramanyam-11/SIH-New-PS)
+[![Test Suite](https://img.shields.io/badge/Pytest-96%20Passed%20(100%25)-blue?style=for-the-badge)](docs/16_test_report.md)
+[![Security Scan](https://img.shields.io/badge/Secrets%20Scan-Zero%20Leaks-success?style=for-the-badge)](backend/scripts/scan_secrets.py)
+[![Consistency Audit](https://img.shields.io/badge/Consistency%20Check-7%2F7%20Passed-purple?style=for-the-badge)](backend/scripts/check_consistency.py)
 
 ---
 
-## 1. Quick Start Guide (Run in 3 Commands)
+## 30-Second Elevator Pitch for Hackathon Judges
 
-### Option A: Using Make (macOS / Linux)
+Statutory regulatory approvals across AICTE's Approval Process Handbook (APH 2026) have historically suffered from opaque tracking, manual file delays, uncoordinated field inspections, and subjective compliance reviews.
+
+**SIH26262 transforms this process into a predictable, auditable, and automated digital governance platform:**
+1. **Fair Pendency Clock**: Implements statutory working-days SLA calculation (excluding state gazette holidays and Sundays) that automatically pauses when deficiencies are returned to institutions—eliminating false institutional penalties while holding officers accountable to strict statutory timelines.
+2. **Explainable Real-Time Alert Engine**: Replaces black-box warnings with mathematical, plain-English justifications, actual observed metrics, and exact statutory APH clause citations across a 2-tier escalation hierarchy (WARNING at 48h, ESCALATED at 24h).
+3. **Multi-Factor Delay Risk Scoring**: Quantifies delay probability (0–100) across historical revert frequency, document expiry proximity, pendency velocity, and regional load, categorized into centralized Low, Medium, and High bands.
+4. **Conflict-Free EVC Panel Selection**: Recommends unbiased 3-member Expert Visit Committees filtered by geographic proximity, subject expertise, and strict alumni/conflict-of-interest checks.
+5. **Cryptographic Immutability & National Sync**: Protects all procedural decisions in an append-only SHA-256 hash-chained ledger fortified with PostgreSQL triggers preventing row modification, envelope file encryption (AES-256-GCM), and HMAC-SHA256 mock integration with AICTE National Central databases.
+
+---
+
+## System Architecture
+
+![System Architecture](docs/screenshots/architecture.svg)
+
+Full architectural specification available at [`docs/15_architecture.md`](docs/15_architecture.md).
+
+---
+
+## Problem Statement Feature Traceability Matrix (Modules A – F)
+
+| Module | Core Functionality | Primary Screens | Backend Engine / APIs | Test Coverage |
+| :--- | :--- | :--- | :--- | :--- |
+| **Module A** | Core Statutory Workflow & 7-Stage State Machine | `/applications`, `/applications/[id]` | `WorkflowEngine`, `/api/v1/applications` | `test_workflow_engine.py` (7 tests) |
+| **Module B** | Real-Time Delay Detection & Fair Pendency Clock | `/`, `/applications/[id]`, `/reports` | `WorkingDayService`, `ClockService` | `test_phase6_v2.py` (6 tests) |
+| **Module C** | Explainable Alerts & 2-Tier Automated Escalations | `/alerts`, `/escalation-matrix` | `AlertEngine`, `/api/v1/alerts` | `test_alert_watchers.py` (9 tests) |
+| **Module D** | Predictive Delay Risk Scoring & Bottleneck Heat Grid | `/bottlenecks`, `/planner` | `RiskScoreService`, `/api/v1/risk` | `test_phase7_innovation.py` (17 tests) |
+| **Module E** | Institution Portal, Deficiencies & Undertakings | `/portal`, `/undertakings`, `/document-validity` | `UndertakingService`, `DocumentService` | `test_phase5_screens.py` (12 tests) |
+| **Module F** | Cryptographic Ledger, File Encryption & Mock National AICTE | `/admin/audit`, `/admin/retention`, `/integration` | `AuditService`, `FileStorageService`, `AicteAdapter` | `test_phase8_security.py` (19 tests) |
+
+Detailed feature mapping available in [`docs/22_feature_map.md`](docs/22_feature_map.md).
+
+---
+
+## Showcase Screenshots
+
+| Regional Head Dashboard & Alerts | Statutory Case Detail & Fair Pendency Clock |
+| :---: | :---: |
+| ![Role Dashboard](docs/screenshots/02_role_dashboard_alerts_risk.png) | ![Case Detail](docs/screenshots/04_case_detail_stage_tracker.png) |
+| **EVC Inspection Panel Selection** | **Regional Bottleneck Heat Grid** |
+| ![EVC Queue](docs/screenshots/08_evc_queue_panel_selection.png) | ![Bottleneck Heat Grid](docs/screenshots/11_bottleneck_heat_grid.png) |
+
+All 16 high-resolution screenshots (1440x900) are cataloged under [`docs/screenshots/`](docs/screenshots/).
+
+---
+
+## Quick Start & Verification (Cross-Platform)
+
+### Option A: macOS & Linux (Make)
 
 ```bash
-# 1. Setup environment (Python venv + Frontend npm packages)
+# 1. Setup Python virtual environment and Frontend dependencies
 make setup
 
-# 2. Reset database and seed foundation records (roles, users, regions, institutions, APH rules)
-make db-reset
+# 2. Reset database and seed foundation + 60 demo applications (takes ~4s)
+make demo-reset
 
-# 3. Start development servers (Backend on :8000, Frontend on :3000)
+# 3. Run the comprehensive release check (Pytest, Secrets, Consistency, Audit Chain, Build)
+make final-check
+
+# 4. Start Development Servers (Backend on :8000, Frontend on :3001)
 make dev
 ```
 
-### Option B: Step-by-Step for Windows (PowerShell)
+### Option B: Windows (PowerShell)
 
 ```powershell
-# 1. Start PostgreSQL (Docker or local service)
-docker compose up -d
-
-# 2. Setup and run Backend
+# 1. Setup Backend & Database
 cd backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-python scripts\reset_db.py
-uvicorn app.main:app --reload --port 8000
+python scripts\demo_reset.py
 
-# 3. In a second PowerShell window, run Frontend
+# 2. Run Comprehensive Verification
+Push-Location ..
+.\scripts\powershell\final-check.ps1
+
+# 3. Start Frontend
 cd frontend
 npm install
 npm run dev
 ```
 
-Visit the application at: **`http://localhost:3000`**  
-FastAPI Interactive API Documentation: **`http://localhost:8000/docs`**
+Visit the application at: **`http://localhost:3001`**  
+Interactive Presenter Walkthrough Guide: **`http://localhost:3001/demo`**
 
 ---
 
-## 2. One-Click Demo Personas (`DEMO_MODE=true`)
+## One-Click Demo Personas (`DEMO_MODE=true`)
 
-When navigating to `http://localhost:3000/login`, one-click fast-login buttons are displayed under **One-Click Demo Personas**:
+When visiting `http://localhost:3001/login`, clicking any persona badge instantly logs in without typing:
 
-| Persona Role | User Name | Demo Email | Access Scope & Visible Views |
+| Persona Role | Demo Name | Demo Email | Access Scope & Visible Views |
 | :--- | :--- | :--- | :--- |
-| **Regional Head (North)** | Er. Sunil Trivedi | `ro.north@aicte.gov.in` | Scoped to Northern RO (UP, UK). Views Dashboard, Applications, EVC Queue, Undertakings, Document Validity, Reports, Case Closure. |
-| **Scrutiny Officer** | Amit Sharma | `scrutiny1@aicte.gov.in` | Northern RO Desk. Views Dashboard, Assigned Applications, Undertakings, Document Validity, Returns for Deficiency. |
-| **EVC Coordinator** | Prof. K. Ramanathan | `evc.coord@aicte.gov.in` | Southern RO Desk. Views Dashboard, Applications, EVC Inspection Queue, Document Validity. |
-| **Competent Authority** | Prof. T. G. Sitharam | `chairman@aicte.gov.in` | National Headquarters. High-level dashboard, SAC/SHC review, Reports, Statutory Approval/Rejection & Case Closure. |
-| **Bureau Officer** | Smt. Neha Mukherjee | `bureau.officer@aicte.gov.in` | Central Technical Bureau. Cross-region read-only oversight of pendency, bottlenecks, and alerts acknowledgment. |
-| **Committee Member (EVC)** | Dr. Anand Swaminathan | `evc.member@aicte.gov.in` | Expert Inspection Panel. Scoped strictly to assigned committee cases; records non-binding advisory observations. |
-| **System Admin** | Dr. Rajesh Verma | `admin@aicte.gov.in` | Central HQ. Complete administrative control, APH rules configuration, working-day holiday calendar, audit logs. |
-| **Institution User** | Dr. V. K. Saxena | `principal@apexkanpur.edu` | Apex Institute of Technology, Kanpur. Scoped strictly to own institution portal (`/portal`), deficiency clarification responses. |
+| **Regional Head (North)** | Er. Sunil Trivedi | `ro.north@demo.example` | Scoped to Northern RO (UP, UK). Views Dashboard, Applications, EVC Queue, Undertakings, Documents, Reports. |
+| **Scrutiny Officer** | Amit Sharma | `scrutiny1@demo.example` | Northern RO Desk. Assigned cases, deficiency returns, document audit, undertakings review. |
+| **EVC Coordinator** | Prof. K. Ramanathan | `evc.coord@demo.example` | Southern RO Desk. EVC Inspection Queue, expert panel selection, conflict-free recommendations. |
+| **Competent Authority** | Dr. Anand V. Joshi | `chairman@demo.example` | National Headquarters. SAC/SHC review, Executive bottlenecks, final statutory approvals & LOA orders. |
+| **Bureau Officer** | Smt. Neha Mukherjee | `bureau.officer@demo.example` | Central Technical Bureau. Cross-region read-only oversight of pendency, bottlenecks, alerts. |
+| **Committee Member (EVC)**| Dr. Anand Swaminathan | `evc.member@demo.example` | Expert Inspection Panel. Scoped strictly to assigned committee cases; non-binding advisory inputs. |
+| **System Admin** | Dr. Rajesh Verma | `admin@demo.example` | Central HQ. Complete administrative control, APH rules config, holiday calendar, cryptographic audit. |
+| **Institution User** | Dr. V. K. Saxena | `principal@apexkanpur.demo.example` | Apex Institute of Technology, Kanpur. Scoped strictly to own portal (`/portal`), deficiency replies. |
 
-*Default Password for standard email login*: **`Password@123`**
+*Default Password for standard login*: **`Password@123`**
+
+---
+
+## What is Real vs. Mock (Honesty & Compliance Note)
+
+In compliance with hackathon guidelines and regulatory integrity principles:
+
+1. **Production-Ready & Fully Real**:
+   - PostgreSQL 16 database schema with 17 normalized relational tables and foreign keys.
+   - 7-stage statutory workflow engine with state transition validation and role enforcement.
+   - Fair Pendency Clock calculating actual working days excluding Gazette holidays and Sundays.
+   - Append-only cryptographic audit trail with SHA-256 hash chaining and PostgreSQL triggers blocking SQL UPDATE and DELETE operations.
+   - AES-256-GCM authenticated envelope file encryption with random 96-bit nonces.
+   - 96 passing unit, integration, and security tests.
+
+2. **Simulated / Mocked for Demo Stability**:
+   - **Institutions, Applications & Users**: All 15 institutions (e.g. Apex Institute of Technology), 60 applications (APP-10001 to APP-10060), and 21 user personas are 100% synthetic data generated for simulation. No real institutional or personal data is included.
+   - **National AICTE Adapter (`/integration`)**: Communicates with a mock central AICTE adapter utilizing production-grade HMAC-SHA256 signatures, replay attack timestamp verification, and exponential backoff.
+   - **Antivirus Scanner**: Uses a simulated ClamAV scanner that validates file headers, magic bytes, and detects standard EICAR test strings.
+   - **Email Outbox (`/admin/outbox`)**: Emails are generated, formatted with templates, and safely stored in the database outbox (`EMAIL_SEND_ENABLED=false`) for visual auditing without sending spam.
+   - **Statutory Citations**: All APH clauses are labeled with `(sample reference)` to clearly indicate pedagogical reference to the AICTE Approval Process Handbook.
+
+Detailed disclosure available in [`docs/23_known_limitations.md`](docs/23_known_limitations.md).
 
 ---
 
@@ -118,7 +197,7 @@ make seed-demo
 ## 6. Phase 4 Interactive Demo Walkthrough
 
 ### Scenario A: Real-Time Alert Engine & Explainable Drawer
-1. Log in via one-click persona as **Regional Head (North)** (`ro.north@aicte.gov.in`) or **Admin** (`admin@aicte.gov.in`).
+1. Log in via one-click persona as **Regional Head (North)** (`ro.north@demo.example`) or **Admin** (`admin@demo.example`).
 2. Navigate to **Alerts** (`/alerts`) via the left sidebar.
 3. Observe the live summary cards (Critical: 5, High: 22, Medium: 34) loaded strictly from the database.
 4. Click on any alert (e.g. `RULE_FIRE_NOC_EXPIRED` or `RULE_SCRUTINY_OVERDUE`).
@@ -131,7 +210,7 @@ make seed-demo
 ### Scenario B: Procedural Officer Actions (Acknowledge, Snooze, Resolve)
 1. On the open alert drawer, click **Acknowledge** and enter remarks. The status transitions to `ACKNOWLEDGED`.
 2. Click **Snooze**, choose 24 Hours, and enter a substantive justification. The alert is snoozed. Note: attempting a third snooze triggers the strict database limit error (max 2).
-3. Log in as **Competent Authority** (`chairman@aicte.gov.in`) or **Admin**. Open the alert drawer and click **Mark Resolved** with a written justification. The alert is statutorily resolved.
+3. Log in as **Competent Authority** (`chairman@demo.example`) or **Admin**. Open the alert drawer and click **Mark Resolved** with a written justification. The alert is statutorily resolved.
 
 ### Scenario C: Regional Escalation Hierarchy Matrix
 1. Click **Escalation Matrix** (`/escalation-matrix`) in the navigation menu.
@@ -161,7 +240,7 @@ EMAIL_SEND_ENABLED=false
 # When true: emails are dispatched through configured SMTP credentials
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
-SMTP_USER=demo@aicte.gov.in
+SMTP_USER=demo@demo.example
 SMTP_PASSWORD=secret
 ```
 
@@ -188,7 +267,7 @@ make seed-demo
 
 ## 6. Role-Based Demo Walkthrough Script (Phase 5)
 
-### Scenario A: Institution User (`principal@apexkanpur.edu`)
+### Scenario A: Institution User (`principal@apexkanpur.demo.example`)
 1. Login with one-click chip **Institution User (Apex Institute)**.
 2. Note that your sidebar shows only **My Applications** (`/portal`), **Undertakings** (`/portal/undertakings`), and **Document Validity** (`/portal/documents`). Alerts and officer screens are completely hidden.
 3. In `/portal`:
@@ -202,7 +281,7 @@ make seed-demo
    - Inspect statutory certificates (Lease, Fire NOC, FDR Guarantee).
    - Click **Upload Renewal**, specify a new expiry date, select a file, and submit. Notice status shows *"Renewal submitted, awaiting verification"*.
 
-### Scenario B: Scrutiny Officer (`scrutiny1@aicte.gov.in`)
+### Scenario B: Scrutiny Officer (`scrutiny1@demo.example`)
 1. Login with one-click chip **Scrutiny Officer (Northern RO)**.
 2. Navigate to **Undertakings** (`/undertakings`):
    - Locate the undertaking submitted by Apex Institute.
@@ -214,7 +293,7 @@ make seed-demo
    - Click **Review & Audit** to view the version history (`v1 -> v2`).
    - Approve or reject the renewal dossier. Notice linked alerts auto-resolve upon officer verification.
 
-### Scenario C: EVC Coordinator (`evc.coord@aicte.gov.in`)
+### Scenario C: EVC Coordinator (`evc.coord@demo.example`)
 1. Login with one-click chip **EVC Coordinator**.
 2. Navigate to **EVC Queue** (`/evc-queue`):
    - Filter by status `Pending Assignment` or toggle to **Inspection Calendar** view.
@@ -227,7 +306,7 @@ make seed-demo
    - In Step 3 & 4, mark visit completed and upload the signed EVC report.
    - In Step 5, click **Close EVC Visit**. The scrutiny officer can now advance the case to SAC/SHC.
 
-### Scenario D: Regional Head (`ro.north@aicte.gov.in`)
+### Scenario D: Regional Head (`ro.north@demo.example`)
 1. Login with one-click chip **Regional Head (North)**.
 2. Navigate to **Reports** (`/reports`):
    - Inspect **Pendency & Ageing** with Recharts bar chart showing pending vs overdue cases by stage.
@@ -236,7 +315,7 @@ make seed-demo
    - Click **Export PDF** to generate and download a formal `aicte_regional_performance_report.pdf` docket.
    - Switch to **Institution Health Dossier**, select any institution, and inspect its 360-degree regulatory compliance score and dossier.
 
-### Scenario E: Competent Authority (`chairman@aicte.gov.in`)
+### Scenario E: Competent Authority (`chairman@demo.example`)
 1. Login with one-click chip **Competent Authority**.
 2. Navigate to **Undertakings** (`/undertakings`):
    - View undertakings flagged with the **Escalated to Council** badge (&ge; 2 rejections or severe overdue delay).
@@ -258,7 +337,7 @@ EMAIL_SEND_ENABLED=false
 # When true: emails are dispatched through configured SMTP credentials
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
-SMTP_USER=demo@aicte.gov.in
+SMTP_USER=demo@demo.example
 SMTP_PASSWORD=secret
 ```
 
@@ -327,10 +406,49 @@ LLM_PROVIDER=none
 
 ---
 
-## 10. Next Steps: Phase 8 (Security Hardening & Final Deliverables)
-- Append-only immutable audit log export & signature verification
-- Anti-virus / MIME file upload scanner verification
-- Configurable statutory record retention rules
-- Mock AICTE National Portal adapter
-- End-to-end architecture diagram & test verification report
+## 10. Phase 8 Security Hardening, Verification & Proof Commands
+
+Phase 8 introduces enterprise-grade security hardening, cryptographic auditability, and national integration adapters:
+
+### 10.1 Key Make Commands
+```bash
+# Verify the entire cryptographic SHA-256 audit log hash chain
+make verify-audit
+
+# Export current FastAPI OpenAPI specification schema
+make openapi
+
+# Execute all 90 automated regression tests and generate docs/16_test_report.md
+make test-report
+```
+
+### 10.2 Security Hardening Architecture
+1. **Cryptographic Append-Only Audit Trail (`/admin/audit`)**:
+   - PostgreSQL trigger `trg_audit_log_prevent_modify` unconditionally blocks any SQL `UPDATE` or `DELETE` attempt.
+   - Every row stores `prev_hash` and SHA-256 `hash`. Writes acquire transactional advisory lock `pg_advisory_xact_lock(987654321)` to eliminate chain forks.
+   - Interactive verification button walks all records from genesis to confirm 100% cryptographic continuity.
+   - Run `python backend/scripts/demo_tamper_check.py` to watch the verifier catch an altered record and roll back cleanly.
+
+2. **AES-256-GCM File Encryption at Rest & Magic-Byte Validation**:
+   - Uploaded documents are encrypted on disk with AES-256-GCM using keys configured via `FILE_ENCRYPTION_KEY`.
+   - Each file maintains its own 96-bit initialization vector and key ID for zero-downtime key rotation.
+   - Strict inspection: single extension enforcement, double-extension rejection (`.pdf.exe`), and magic byte validation (`%PDF`, `\x89PNG`, `\xff\xd8\xff`).
+   - Anti-malware interface rejects standard EICAR test patterns (`DemoScanner`) and provides ClamAV daemon connectivity.
+
+3. **Access Hardening & Login Lockout**:
+   - In-memory failed attempt tracking triggers temporary account lockout for 15 minutes after 5 consecutive failures.
+   - Mandatory security headers (`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Content-Security-Policy`).
+   - `DEMO_MODE=False` completely disables `/demo-login` and hides all demo persona chips.
+
+4. **Mock AICTE System Adapter (`/integration`)**:
+   - Standardized `AicteSystemAdapter` interface with `MockAicteAdapter` implementation for national portal synchronization.
+   - Inbound webhook authentication via `X-API-Key` + `X-Timestamp` (rejecting replay requests with drift $>300$ seconds) + HMAC-SHA256 signature (`X-Signature`).
+   - Idempotent request replay caching via `X-Idempotency-Key`.
+   - Clearly labelled: *"MOCK ADAPTER. No real AICTE system is contacted"*.
+
+5. **Statutory Data Retention Dry Run (`/admin/retention`)**:
+   - Configurable statutory retention thresholds stored in `system_config`.
+   - Non-destructive candidate preview and CSV compliance export.
+   - Audit log is permanently exempt from archival or deletion.
+   - Clearly labelled: *"Preview only. No data is deleted by this prototype."*
 

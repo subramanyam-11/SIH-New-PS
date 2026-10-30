@@ -13,11 +13,12 @@ import {
   Play,
   CheckCircle2,
   ExternalLink,
-  Clock
+  Clock,
+  Menu
 } from 'lucide-react';
 import { notificationsApi, alertsApi, NotificationItem } from '@/lib/api';
 
-export function TopBar() {
+export function TopBar({ onToggleMobileMenu }: { onToggleMobileMenu?: () => void } = {}) {
   const { scope, logout } = useAuth();
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [recentNotifs, setRecentNotifs] = useState<NotificationItem[]>([]);
@@ -109,13 +110,20 @@ export function TopBar() {
   };
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0 relative z-30">
-      <div className="flex items-center gap-3">
-        <h1 className="text-base font-semibold text-slate-800">
+    <header className="h-16 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between shrink-0 relative z-30">
+      <div className="flex items-center gap-2 sm:gap-3">
+        <button
+          onClick={onToggleMobileMenu}
+          className="md:hidden p-1.5 -ml-1 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md"
+          aria-label="Open navigation menu"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+        <h1 className="text-sm md:text-base font-semibold text-slate-800 truncate max-w-[190px] sm:max-w-none">
           All India Council for Technical Education
         </h1>
-        <span className="text-slate-300">|</span>
-        <span className="text-xs text-slate-500 font-medium">Compliance & Workflow Portal</span>
+        <span className="hidden sm:inline text-slate-300">|</span>
+        <span className="hidden sm:inline text-xs text-slate-500 font-medium">Compliance & Workflow Portal</span>
       </div>
 
       <div className="flex items-center gap-4">

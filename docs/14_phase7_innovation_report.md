@@ -230,14 +230,14 @@ Running `make seed-demo` executes deterministic database seeding across 60 appli
 ## 8. Demo Script for Evaluators & Judges (Steps 3 & 4)
 
 1. **Step 1: Early-Warning Delay Risk Detection**
-   - Log in as **Regional Head (North)** (`ro.north@aicte.gov.in`).
+   - Log in as **Regional Head (North)** (`ro.north@demo.example`).
    - On the Dashboard, review the **"Highest Delay Risk Cases"** card.
    - Click into a high-risk dossier (e.g. `APP-10045`, Risk Score: $84$).
    - Inspect the **Risk Breakdown** card: observe the exact 4-factor sentence (*"Open for 14 of 10 working days, so 40 of 40 points..."*) and the prominent **"Decision support only"** badge.
 2. **Step 2: Time Travel & Alert Escalation**
    - In the top bar, advance the demo clock by **+7 Days (+168h)**.
    - Click **Run Checks Now**.
-   - Notice that the early risk warning materialized into an active SLA breach. Alert `RULE_SCRUTINY_OVERDUE` escalates from Tier 1 (Officer) to Tier 2 (Regional Head) and Tier 3 (Apex Council).
+   - Notice that the early risk warning materialized into an active SLA breach. Alert `RULE_SCRUTINY_OVERDUE` escalates from Tier 1 (Officer) to Tier 2 (Regional Head) and Tier 3 (Competent Authority).
 3. **Step 3: Bottleneck Identification**
    - Click **Bottlenecks** (`/bottlenecks`) in the sidebar.
    - View the ranked logjams, the interactive region-by-stage heat matrix, and notice that institutional response time is cleanly isolated from AICTE processing time.

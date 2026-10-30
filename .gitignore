@@ -25,6 +25,8 @@ wheels/
 .pytest_cache/
 .coverage
 htmlcov/
+test-results.xml
+*.xml
 
 # Node
 node_modules/

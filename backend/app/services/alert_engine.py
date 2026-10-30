@@ -609,3 +609,36 @@ class AlertEngine:
         officer_id = officer.id if officer else None
         role = UserRoleEnum.SCRUTINY_OFFICER
         return officer_id, role
+
+    @classmethod
+    def get_summary(cls, db: Session) -> Dict[str, Any]:
+        """
+        Returns nationwide open alert counts broken down by severity, status, and tier.
+        """
+        open_alerts = db.query(Alert).filter(
+            Alert.status.in_([
+                AlertStatusEnum.ACTIVE,
+                AlertStatusEnum.ACKNOWLEDGED,
+                AlertStatusEnum.SNOOZED,
+                AlertStatusEnum.ESCALATED,
+            ])
+        ).all()
+
+        by_severity = {"LOW": 0, "MEDIUM": 0, "HIGH": 0, "CRITICAL": 0, "INFO": 0}
+        by_status = {"ACTIVE": 0, "ACKNOWLEDGED": 0, "SNOOZED": 0, "ESCALATED": 0}
+        by_level = {"L1": 0, "L2": 0, "L3": 0}
+
+        for a in open_alerts:
+            sev_val = a.severity.value if hasattr(a.severity, 'value') else str(a.severity)
+            by_severity[sev_val] = by_severity.get(sev_val, 0) + 1
+            st_val = a.status.value if hasattr(a.status, 'value') else str(a.status)
+            by_status[st_val] = by_status.get(st_val, 0) + 1
+            tier_key = f"L{a.escalation_tier or 1}"
+            by_level[tier_key] = by_level.get(tier_key, 0) + 1
+
+        return {
+            "total_open_alerts": len(open_alerts),
+            "by_severity": by_severity,
+            "by_status": by_status,
+            "by_tier": by_level
+        }

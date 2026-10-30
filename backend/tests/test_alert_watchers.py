@@ -119,10 +119,10 @@ def test_deduplication_and_auto_resolution():
         run2 = AlertEngine.evaluate_all_rules(db=db, triggered_by="TEST")
         assert run2["alerts_created"] == 0
 
-        # Auto-resolve test: Mark a document with an active alert as SUPERSEDED (condition clears)
+        # Auto-resolve test: Mark a document with an active/escalated alert as SUPERSEDED (condition clears)
         doc_alert = db.query(Alert).filter(
             Alert.document_id != None,
-            Alert.status == AlertStatusEnum.ACTIVE
+            Alert.status.in_([AlertStatusEnum.ACTIVE, AlertStatusEnum.ESCALATED])
         ).first()
         assert doc_alert is not None
         doc_id = doc_alert.document_id
@@ -230,14 +230,14 @@ def test_time_travel_clock_advancement_creates_alerts():
 def test_role_and_regional_scoping():
     """Test that regional officers only see alerts in their jurisdiction."""
     # 1. Regional Head North (region 1)
-    login_north = client.post("/api/v1/auth/demo-login", json={"role": "REGIONAL_HEAD", "email": "ro.north@aicte.gov.in"}).json()
+    login_north = client.post("/api/v1/auth/demo-login", json={"role": "REGIONAL_HEAD", "email": "ro.north@demo.example"}).json()
     token_north = login_north["access_token"]
     res_north = client.get("/api/v1/alerts", headers={"Authorization": f"Bearer {token_north}"})
     assert res_north.status_code == 200
     alerts_north = res_north.json()
 
     # 2. Regional Head South (region 3)
-    login_south = client.post("/api/v1/auth/demo-login", json={"role": "REGIONAL_HEAD", "email": "ro.south@aicte.gov.in"}).json()
+    login_south = client.post("/api/v1/auth/demo-login", json={"role": "REGIONAL_HEAD", "email": "ro.south@demo.example"}).json()
     token_south = login_south["access_token"]
     res_south = client.get("/api/v1/alerts", headers={"Authorization": f"Bearer {token_south}"})
     assert res_south.status_code == 200
@@ -262,7 +262,7 @@ def test_scheduler_overlap_lock_and_outbox_flow():
         user = db.query(User).filter(User.role.has(code="ADMIN")).first()
         outbox_entry = EmailService.queue_email(
             db=db,
-            recipient_email="test.officer@aicte.gov.in",
+            recipient_email="test.officer@demo.example",
             subject="[AICTE Test] Delivery Status",
             body="Test email content",
             recipient_user_id=user.id,
@@ -295,7 +295,7 @@ def test_alerts_do_not_modify_application_stage_or_status():
 
 def test_api_endpoints_acknowledge_snooze_resolve():
     """Verify API endpoints for alert lifecycle: acknowledge, snooze, and resolve."""
-    admin_login = client.post("/api/v1/auth/demo-login", json={"role": "ADMIN", "email": "admin@aicte.gov.in"}).json()
+    admin_login = client.post("/api/v1/auth/demo-login", json={"role": "ADMIN", "email": "admin@demo.example"}).json()
     token = admin_login["access_token"]
 
     # 1. Fetch alerts list

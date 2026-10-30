@@ -80,6 +80,10 @@ class UserScope:
         self.institution_id = user.institution_id
 
     @property
+    def role(self):
+        return self.role_code
+
+    @property
     def is_national(self) -> bool:
         return self.role_code in [UserRoleEnum.ADMIN, UserRoleEnum.COMPETENT_AUTHORITY, UserRoleEnum.BUREAU_OFFICER]
 

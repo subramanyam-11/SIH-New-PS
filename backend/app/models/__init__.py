@@ -366,6 +366,9 @@ class UploadedFile(Base):
     file_size_bytes = Column(Integer, nullable=False)
     mime_type = Column(String(100), nullable=False)
     checksum_sha256 = Column(String(64), nullable=False)
+    is_encrypted = Column(Boolean, default=False, nullable=False)
+    encryption_key_id = Column(String(50), nullable=True)
+    encryption_iv = Column(String(64), nullable=True)
     entity_type = Column(String(50), nullable=True) # 'UNDERTAKING_EVIDENCE', 'DOCUMENT_RENEWAL', 'EVC_REPORT'
     entity_id = Column(Integer, nullable=True)
     uploaded_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
@@ -712,6 +715,8 @@ class AuditLog(Base):
     new_values = Column(JSONB, nullable=True)
     actor_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     ip_address = Column(String(45), nullable=True)
+    prev_hash = Column(String(64), nullable=True)
+    hash = Column(String(64), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
 
 
@@ -820,6 +825,20 @@ class AlertPriorityScore(Base):
     factor_escalation = Column(Float, default=0.0, nullable=False)
     factor_risk_impact = Column(Float, default=0.0, nullable=False)
     explanation = Column(Text, nullable=True)
-    computed_at = Column(DateTime(timezone=True), default=datetime.utcnow)
-
     alert = relationship("Alert", back_populates="priority_score")
+
+
+class IntegrationLog(Base):
+    __tablename__ = "integration_log"
+
+    id = Column(Integer, primary_key=True, index=True)
+    direction = Column(String(20), nullable=False)  # INBOUND, OUTBOUND
+    operation = Column(String(100), nullable=False)
+    adapter_type = Column(String(50), default="MOCK_AICTE", nullable=False)
+    status = Column(String(20), nullable=False)      # SUCCESS, FAILED, REJECTED
+    idempotency_key = Column(String(100), nullable=True, index=True)
+    request_summary = Column(JSONB, nullable=True)
+    response_summary = Column(JSONB, nullable=True)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    completed_at = Column(DateTime(timezone=True), nullable=True)

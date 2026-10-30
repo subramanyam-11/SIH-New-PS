@@ -14,12 +14,12 @@ ROLE_SCREEN_PERMISSIONS = {
     UserRoleEnum.ADMIN: [
         "/dashboard", "/applications", "/alerts", "/escalation-matrix", "/notifications",
         "/admin/outbox", "/evc-queue", "/undertakings", "/document-validity", "/settings/rules", "/reports",
-        "/bottlenecks", "/planner"
+        "/bottlenecks", "/planner", "/admin/audit", "/admin/retention", "/integration"
     ],
     UserRoleEnum.COMPETENT_AUTHORITY: [
         "/dashboard", "/applications", "/alerts", "/escalation-matrix", "/notifications",
         "/evc-queue", "/undertakings", "/document-validity", "/reports",
-        "/bottlenecks", "/planner"
+        "/bottlenecks", "/planner", "/admin/audit", "/admin/retention", "/integration"
     ],
     UserRoleEnum.REGIONAL_HEAD: [
         "/dashboard", "/applications", "/alerts", "/escalation-matrix", "/notifications",

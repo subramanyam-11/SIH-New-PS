@@ -42,15 +42,15 @@ This document details the realistic synthetic dataset to be seeded into PostgreS
 
 | Role | Username | Full Name | Region / Inst Assignment | Purpose in Demo |
 | :--- | :--- | :--- | :--- | :--- |
-| `ADMIN` | `admin@aicte.gov.in` | Dr. Rajesh Verma (System Admin) | Central Headquarters | Full config & audit inspection |
-| `REGIONAL_HEAD` | `ro.north@aicte.gov.in` | Er. Sunil Trivedi (Regional Officer North) | Northern RO (Kanpur) | Regional dashboard & escalation handling |
-| `REGIONAL_HEAD` | `ro.west@aicte.gov.in` | Dr. Priya Kulkarni (Regional Officer West) | Western RO (Mumbai) | Regional comparisons |
-| `SCRUTINY_OFFICER` | `scrutiny1@aicte.gov.in` | Amit Sharma (Scrutiny Desk 1) | Northern RO | Testing scrutiny review & revert |
-| `SCRUTINY_OFFICER` | `scrutiny2@aicte.gov.in` | Neha Joshi (Scrutiny Desk 2) | Western RO | Workload balancing demo |
-| `EVC_COORDINATOR` | `evc.coord@aicte.gov.in` | Prof. K. Ramanathan (EVC Lead) | Southern RO | Scheduling queue & panel assignment |
-| `COMPETENT_AUTHORITY` | `chairman@aicte.gov.in` | Prof. T. G. Sitharam (Chairman / CA) | National Headquarters | National KPI dashboard & SAC/SHC orders |
-| `INSTITUTION_USER` | `principal@apexkanpur.edu` | Dr. V. K. Saxena (Principal, Apex Kanpur) | Apex Institute (Inst #1) | Self-service portal, deficiency replies |
-| `INSTITUTION_USER` | `director@sahyadri.edu` | Dr. S. R. Patil (Director, Sahyadri Pune) | Sahyadri College (Inst #4) | Document renewal & undertaking evidence |
+| `ADMIN` | `admin@demo.example` | Dr. Rajesh Verma (System Admin) | Central Headquarters | Full config & audit inspection |
+| `REGIONAL_HEAD` | `ro.north@demo.example` | Er. Sunil Trivedi (Regional Officer North) | Northern RO (Kanpur) | Regional dashboard & escalation handling |
+| `REGIONAL_HEAD` | `ro.west@demo.example` | Dr. Priya Kulkarni (Regional Officer West) | Western RO (Mumbai) | Regional comparisons |
+| `SCRUTINY_OFFICER` | `scrutiny1@demo.example` | Amit Sharma (Scrutiny Desk 1) | Northern RO | Testing scrutiny review & revert |
+| `SCRUTINY_OFFICER` | `scrutiny2@demo.example` | Neha Joshi (Scrutiny Desk 2) | Western RO | Workload balancing demo |
+| `EVC_COORDINATOR` | `evc.coord@demo.example` | Prof. K. Ramanathan (EVC Lead) | Southern RO | Scheduling queue & panel assignment |
+| `COMPETENT_AUTHORITY` | `chairman@demo.example` | Dr. Anand V. Joshi (Competent Authority) | National Headquarters | National KPI dashboard & SAC/SHC orders |
+| `INSTITUTION_USER` | `principal@apexkanpur.demo.example` | Dr. V. K. Saxena (Principal, Apex Kanpur) | Apex Institute (Inst #1) | Self-service portal, deficiency replies |
+| `INSTITUTION_USER` | `director@sahyadri.demo.example` | Dr. S. R. Patil (Director, Sahyadri Pune) | Sahyadri College (Inst #4) | Document renewal & undertaking evidence |
 
 ---
 

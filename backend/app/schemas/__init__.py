@@ -158,6 +158,8 @@ class ApplicationCreate(BaseModel):
     category_id: int
     stage_path_id: Optional[int] = None
     academic_year: Optional[str] = "2026-2027"
+    aicte_permanent_id: Optional[str] = None
+    prefill_from_adapter: Optional[bool] = False
 
 
 class StageTransitionRequest(BaseModel):

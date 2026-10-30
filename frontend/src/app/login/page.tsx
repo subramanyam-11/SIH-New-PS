@@ -21,56 +21,56 @@ const DEMO_PERSONAS: DemoPersona[] = [
     role: 'REGIONAL_HEAD',
     label: 'Regional Head (North)',
     name: 'Er. Sunil Trivedi',
-    email: 'ro.north@aicte.gov.in',
+    email: 'ro.north@demo.example',
     badge: 'info'
   },
   {
     role: 'SCRUTINY_OFFICER',
     label: 'Scrutiny Officer',
     name: 'Amit Sharma',
-    email: 'scrutiny1@aicte.gov.in',
+    email: 'scrutiny1@demo.example',
     badge: 'info'
   },
   {
     role: 'EVC_COORDINATOR',
     label: 'EVC Coordinator',
     name: 'Prof. K. Ramanathan',
-    email: 'evc.coord@aicte.gov.in',
+    email: 'evc.coord@demo.example',
     badge: 'warning'
   },
   {
     role: 'COMPETENT_AUTHORITY',
     label: 'Competent Authority',
-    name: 'Prof. T. G. Sitharam',
-    email: 'chairman@aicte.gov.in',
+    name: 'Dr. Anand V. Joshi',
+    email: 'chairman@demo.example',
     badge: 'success'
   },
   {
     role: 'ADMIN',
     label: 'System Admin',
     name: 'Dr. Rajesh Verma',
-    email: 'admin@aicte.gov.in',
+    email: 'admin@demo.example',
     badge: 'neutral'
   },
   {
     role: 'INSTITUTION_USER',
     label: 'Institution User',
     name: 'Apex Institute (Kanpur)',
-    email: 'principal@apexkanpur.edu',
+    email: 'principal@apexkanpur.demo.example',
     badge: 'neutral'
   },
   {
     role: 'BUREAU_OFFICER',
     label: 'Bureau Officer',
     name: 'Dr. Alok Verma',
-    email: 'bureau.officer@aicte.gov.in',
+    email: 'bureau.officer@demo.example',
     badge: 'info'
   },
   {
     role: 'COMMITTEE_MEMBER',
     label: 'Committee Member',
     name: 'Dr. Ramesh Sharma (EVC)',
-    email: 'evc.member@aicte.gov.in',
+    email: 'evc.member@demo.example',
     badge: 'warning'
   }
 ];
@@ -170,7 +170,7 @@ export default function LoginPage() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="officer@aicte.gov.in"
+                    placeholder="officer@demo.example"
                     className="w-full pl-9 pr-3 py-2 text-sm rounded border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0f2b5c] focus:border-transparent bg-white text-slate-900"
                     disabled={isSubmitting}
                   />

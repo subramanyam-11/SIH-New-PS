@@ -16,7 +16,11 @@ import {
   AlertTriangle,
   Network,
   Mail,
-  Bell
+  Bell,
+  History,
+  Archive,
+  Radio,
+  Compass
 } from 'lucide-react';
 
 interface NavItem {
@@ -39,6 +43,9 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { name: 'What-If Planner', href: '/planner', icon: Sliders },
   { name: 'APH & Escalation Rules', href: '/settings/rules', icon: Sliders },
   { name: 'Reports', href: '/reports', icon: BarChart3 },
+  { name: 'Audit Trail', href: '/admin/audit', icon: History },
+  { name: 'Data Retention', href: '/admin/retention', icon: Archive },
+  { name: 'AICTE Integration', href: '/integration', icon: Radio },
 ];
 
 const INSTITUTION_NAV_ITEMS: NavItem[] = [
@@ -51,7 +58,7 @@ const COMMITTEE_NAV_ITEMS: NavItem[] = [
   { name: 'My Committee Cases', href: '/committee/my-cases', icon: ClipboardList },
 ];
 
-export function Sidebar() {
+export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const { scope } = useAuth();
   const pathname = usePathname();
 
@@ -72,7 +79,7 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col shrink-0 border-r border-slate-800">
+    <aside className="w-64 h-full bg-slate-900 text-slate-300 flex flex-col shrink-0 border-r border-slate-800">
       {/* Brand Header */}
       <div className="h-16 flex items-center px-6 gap-3 border-b border-slate-800 bg-slate-950">
         <div className="w-8 h-8 rounded bg-[#0f2b5c] border border-blue-400/30 flex items-center justify-center font-bold text-white text-sm">
@@ -96,6 +103,7 @@ export function Sidebar() {
             <a
               key={item.href}
               href={item.href}
+              onClick={() => onNavigate?.()}
               className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
                 isActive
                   ? 'bg-blue-900/40 text-blue-300 border-l-2 border-blue-400 pl-[10px]'
@@ -108,6 +116,18 @@ export function Sidebar() {
           );
         })}
       </nav>
+
+      {/* Demo Guide Presenter Link */}
+      <div className="px-3 pb-2">
+        <a
+          href="/demo"
+          onClick={() => onNavigate?.()}
+          className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-md bg-blue-950/60 text-blue-300 border border-blue-500/30 hover:bg-blue-900/50 hover:text-white transition-colors"
+        >
+          <Compass className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+          <span>Demo Guide (/demo)</span>
+        </a>
+      </div>
 
       {/* Sidebar Footer */}
       <div className="p-4 border-t border-slate-800 text-[11px] text-slate-400 flex flex-col gap-1 bg-slate-950">

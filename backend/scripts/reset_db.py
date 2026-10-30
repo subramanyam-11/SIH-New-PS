@@ -15,6 +15,23 @@ def reset_database():
     # Drop all tables, views, types and alembic_version
     drop_sql = """
     DROP TABLE IF EXISTS alembic_version CASCADE;
+    DROP TABLE IF EXISTS integration_log CASCADE;
+    DROP TABLE IF EXISTS alert_priority_scores CASCADE;
+    DROP TABLE IF EXISTS risk_score_snapshots CASCADE;
+    DROP TABLE IF EXISTS committee_observations CASCADE;
+    DROP TABLE IF EXISTS committee_assignments CASCADE;
+    DROP TABLE IF EXISTS clock_segments CASCADE;
+    DROP TABLE IF EXISTS holidays CASCADE;
+    DROP TABLE IF EXISTS scheduler_runs CASCADE;
+    DROP TABLE IF EXISTS email_outbox CASCADE;
+    DROP TABLE IF EXISTS escalation_history CASCADE;
+    DROP TABLE IF EXISTS undertaking_history CASCADE;
+    DROP TABLE IF EXISTS undertaking_evidence CASCADE;
+    DROP TABLE IF EXISTS undertakings CASCADE;
+    DROP TABLE IF EXISTS documents CASCADE;
+    DROP TABLE IF EXISTS evc_visits CASCADE;
+    DROP TABLE IF EXISTS evc_experts CASCADE;
+    DROP TABLE IF EXISTS uploaded_files CASCADE;
     DROP TABLE IF EXISTS audit_log CASCADE;
     DROP TABLE IF EXISTS case_summaries CASCADE;
     DROP TABLE IF EXISTS notifications CASCADE;
@@ -22,10 +39,6 @@ def reset_database():
     DROP TABLE IF EXISTS alerts CASCADE;
     DROP TABLE IF EXISTS escalation_rules CASCADE;
     DROP TABLE IF EXISTS alert_rules CASCADE;
-    DROP TABLE IF EXISTS undertaking_evidence CASCADE;
-    DROP TABLE IF EXISTS undertakings CASCADE;
-    DROP TABLE IF EXISTS documents CASCADE;
-    DROP TABLE IF EXISTS evc_visits CASCADE;
     DROP TABLE IF EXISTS stage_history CASCADE;
     DROP TABLE IF EXISTS applications CASCADE;
     DROP TABLE IF EXISTS stage_paths CASCADE;
@@ -66,9 +79,9 @@ def reset_database():
         print("2. Applying db/schema.sql...")
         conn.execute(text(schema_sql))
         
-        # Stamp alembic version
+        # Stamp alembic version to head
         conn.execute(text("CREATE TABLE IF NOT EXISTS alembic_version (version_num VARCHAR(32) PRIMARY KEY);"))
-        conn.execute(text("INSERT INTO alembic_version (version_num) VALUES ('001_initial_schema') ON CONFLICT DO NOTHING;"))
+        conn.execute(text("INSERT INTO alembic_version (version_num) VALUES ('007_phase8_security') ON CONFLICT (version_num) DO NOTHING;"))
 
     print("3. Seeding foundation data...")
     seed_foundation()

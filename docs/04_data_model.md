@@ -79,6 +79,23 @@ erDiagram
   - `case_holder`: Current holder (`WITH_AICTE` or `WITH_INSTITUTION`).
   - `closed_at`, `closure_reason`, `closure_remarks`: Recorded upon formal statutory archival.
 
+### F. Phase 8 (Security & Integration) Additions
+- **`audit_log` (Cryptographic Hash Chain & Append-Only Trigger)**:
+  - `prev_hash` (VARCHAR(64)): Hex SHA-256 hash of the immediately preceding audit record (`GENESIS` for row 1).
+  - `hash` (VARCHAR(64)): Cryptographic SHA-256 digest computed over `id`, `table_name`, `record_id`, `action`, `actor_id`, `created_at`, and `prev_hash`.
+  - Database Trigger `trg_audit_log_prevent_modify`: Aborts any SQL `UPDATE` or `DELETE` attempt with an exception.
+- **`uploaded_files` (AES-256-GCM Encryption at Rest)**:
+  - `is_encrypted` (BOOLEAN): Flag indicating symmetric encryption at rest.
+  - `encryption_key_id` (VARCHAR(50)): Identifier of the encryption key in `.env` to facilitate zero-downtime key rotation.
+  - `encryption_iv` (VARCHAR(64)): 96-bit hexadecimal initialization vector (nonce) used for GCM authenticated encryption.
+- **`integration_log` (External Portal Audit & Replay Prevention)**:
+  - Records all inbound webhooks and outbound requests to the AICTE National Portal adapter.
+  - `direction`: `INBOUND` or `OUTBOUND`.
+  - `operation`: e.g. `LOOKUP_INSTITUTION`, `PUSH_STATUS_UPDATE`, `RECEIVE_EXTERNAL_APPLICATION`.
+  - `status`: `SUCCESS`, `FAILED`, `REJECTED`.
+  - `idempotency_key`: Unique client key to guarantee idempotent replay safety.
+  - `request_summary`, `response_summary`: Sanitized JSON payloads (secrets stripped).
+
 ---
 
 ## 3. High-Performance Indexing Strategy
@@ -96,3 +113,5 @@ To support sub-second response times on regional and national dashboards, the sc
 | `documents` | `(expiry_date, status)` | High-frequency nightly cron queries checking for expiring leases/NOCs. |
 | `undertakings` | `(due_date, status)` | Fast retrieval of delinquent or pending compliance conditions. |
 | `alerts` | `(recipient_user_id, status)` | Real-time notification badge counts and unread alert feeds. |
+| `audit_log` | `(id)` | Ordered B-Tree index for linear cryptographic chain verification. |
+| `integration_log` | `(idempotency_key, status)` | Instant idempotent lookup for external webhook replays. |

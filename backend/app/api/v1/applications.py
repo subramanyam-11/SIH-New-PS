@@ -351,9 +351,20 @@ def create_application(
     scope: UserScope = Depends(get_user_scope)
 ):
     """Submits and dockets a new institutional approval application."""
-    # Compute next sequence number
     count = db.query(Application).count()
     app_num = f"AICTE/2026/APP-{10001 + count:05d}"
+
+    # Optional prefill from mock AICTE adapter
+    if payload.prefill_from_adapter:
+        from app.services.aicte_adapter import aicte_adapter
+        inst = db.query(Institution).filter(Institution.id == payload.institution_id).first()
+        if inst:
+            target_id = payload.aicte_permanent_id or inst.aicte_id
+            adapter_res = aicte_adapter.lookup_institution(db, target_id)
+            mock_data = adapter_res.get("institution", {})
+            if mock_data.get("address") and "(from mock adapter)" not in inst.address:
+                inst.address = f"{mock_data['address']} (from mock adapter)"
+            db.commit()
 
     app = WorkflowEngine.submit_application(
         db=db,
@@ -552,13 +563,26 @@ def mark_communication_sent(
 @router.get("/applications/{id}/summary", response_model=CaseSummaryOut)
 def get_case_summary(
     id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Returns the structured executive case brief with SHA-256 caching and fallback."""
     from app.services.case_summary_service import CaseSummaryService
+    from app.services.audit import AuditService
     try:
         summary = CaseSummaryService.get_or_generate_summary(db=db, application_id=id, force_regenerate=False)
+        client_ip = request.client.host if request.client else None
+        AuditService.log_view(
+            db=db,
+            entity_type="CASE_SUMMARY",
+            entity_id=id,
+            action="VIEW_CASE_SUMMARY",
+            actor_id=current_user.id,
+            role=current_user.role.code.value if current_user.role else None,
+            ip_address=client_ip,
+            details={"application_id": id}
+        )
         return summary
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))

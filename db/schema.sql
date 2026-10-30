@@ -129,10 +129,15 @@ CREATE TYPE alert_type_enum AS ENUM (
     'UNDERTAKING_DUE',
     'DOCUMENT_EXPIRING',
     'DOCUMENT_EXPIRED',
-    'MULTIPLE_REVERTS'
+    'MULTIPLE_REVERTS',
+    'EVC_VISIT_OVERDUE',
+    'UNDERTAKING_OVERDUE',
+    'DOCUMENT_RENEWAL_OVERDUE',
+    'RISK_HIGH'
 );
 
 CREATE TYPE alert_severity_enum AS ENUM (
+    'INFO',
     'LOW',
     'MEDIUM',
     'HIGH',
@@ -274,6 +279,7 @@ CREATE TABLE applications (
     closed_at TIMESTAMP WITH TIME ZONE,
     closure_reason VARCHAR(50),
     closure_remarks TEXT,
+    risk_band VARCHAR(20) DEFAULT 'LOW',
 
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -323,6 +329,9 @@ CREATE TABLE uploaded_files (
     entity_type VARCHAR(50),                        -- 'UNDERTAKING_EVIDENCE', 'DOCUMENT_RENEWAL', 'EVC_REPORT'
     entity_id INT,
     uploaded_by INT REFERENCES users(id) ON DELETE SET NULL,
+    is_encrypted BOOLEAN NOT NULL DEFAULT FALSE,
+    encryption_key_id VARCHAR(50),
+    encryption_iv VARCHAR(64),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -584,6 +593,14 @@ CREATE TABLE case_summaries (
     compliance_flags JSONB DEFAULT '[]'::jsonb,
     risk_assessment TEXT,
     generated_by VARCHAR(50) DEFAULT 'AI_ASSISTANT',-- 'AI_ASSISTANT' or 'USER'
+    source_label VARCHAR(50) DEFAULT 'template',
+    input_hash VARCHAR(64),
+    timeline_highlights JSONB DEFAULT '[]'::jsonb,
+    pending_items JSONB DEFAULT '[]'::jsonb,
+    upcoming_deadlines JSONB DEFAULT '[]'::jsonb,
+    suggested_next_steps JSONB DEFAULT '[]'::jsonb,
+    risk_score_at_generation FLOAT,
+    top_risk_factors JSONB DEFAULT '[]'::jsonb,
     last_generated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -605,8 +622,11 @@ CREATE TABLE audit_log (
     new_values JSONB,
     actor_id INT REFERENCES users(id) ON DELETE SET NULL,
     ip_address VARCHAR(45),
+    prev_hash VARCHAR(64),
+    hash VARCHAR(64),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX idx_audit_log_hash ON audit_log(hash);
 
 CREATE TABLE system_config (
     id SERIAL PRIMARY KEY,
@@ -704,3 +724,71 @@ CREATE TABLE committee_observations (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 CREATE INDEX idx_committee_obs_app ON committee_observations(application_id, committee_type);
+
+-- ==============================================================================
+-- 12. PHASE 7 & 8: INNOVATION, RISK SCORING, SMART RANKING & INTEGRATION LOG
+-- ==============================================================================
+
+CREATE TABLE risk_score_snapshots (
+    id SERIAL PRIMARY KEY,
+    application_id INT NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+    score FLOAT NOT NULL,
+    band VARCHAR(20) NOT NULL,
+    factor_age FLOAT NOT NULL DEFAULT 0,
+    factor_returns FLOAT NOT NULL DEFAULT 0,
+    factor_workload FLOAT NOT NULL DEFAULT 0,
+    factor_stage FLOAT NOT NULL DEFAULT 0,
+    raw_age FLOAT,
+    raw_returns FLOAT,
+    raw_workload FLOAT,
+    raw_stage FLOAT,
+    weights JSONB NOT NULL DEFAULT '{}',
+    config_version VARCHAR(50),
+    computed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+CREATE INDEX idx_risk_snapshots_app_id ON risk_score_snapshots(application_id);
+
+CREATE TABLE alert_priority_scores (
+    id SERIAL PRIMARY KEY,
+    alert_id INT NOT NULL REFERENCES alerts(id) ON DELETE CASCADE UNIQUE,
+    priority_score FLOAT NOT NULL,
+    factor_severity FLOAT NOT NULL DEFAULT 0,
+    factor_overdue_days FLOAT NOT NULL DEFAULT 0,
+    factor_escalation FLOAT NOT NULL DEFAULT 0,
+    factor_risk_impact FLOAT NOT NULL DEFAULT 0,
+    explanation TEXT
+);
+CREATE INDEX idx_alert_priority_alert_id ON alert_priority_scores(alert_id);
+
+CREATE TABLE integration_log (
+    id SERIAL PRIMARY KEY,
+    direction VARCHAR(20) NOT NULL,
+    operation VARCHAR(100) NOT NULL,
+    adapter_type VARCHAR(50) NOT NULL DEFAULT 'MOCK_AICTE',
+    status VARCHAR(20) NOT NULL,
+    idempotency_key VARCHAR(100),
+    request_summary JSONB,
+    response_summary JSONB,
+    error_message TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    completed_at TIMESTAMP WITH TIME ZONE
+);
+CREATE INDEX idx_integration_log_idempotency ON integration_log(idempotency_key);
+
+-- ==============================================================================
+-- 13. AUDIT LOG IMMUTABILITY TRIGGER (Strict Database-Level Enforcement)
+-- ==============================================================================
+
+CREATE OR REPLACE FUNCTION prevent_audit_log_modification()
+RETURNS TRIGGER AS $$
+BEGIN
+    RAISE EXCEPTION 'audit_log is append-only: UPDATE and DELETE statements are strictly blocked at the database level.';
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_audit_log_prevent_modify ON audit_log;
+CREATE TRIGGER trg_audit_log_prevent_modify
+BEFORE UPDATE OR DELETE ON audit_log
+FOR EACH ROW
+EXECUTE FUNCTION prevent_audit_log_modification();
+

@@ -70,11 +70,11 @@ def test_state_machine_all_5_paths():
     """Verify end-to-end execution of all 5 stage paths from submission to approval."""
     db: Session = SessionLocal()
     try:
-        admin = db.query(User).filter(User.username == "admin@aicte.gov.in").first()
-        chairman = db.query(User).filter(User.username == "chairman@aicte.gov.in").first()
-        evc_coord = db.query(User).filter(User.username == "evc.coord@aicte.gov.in").first()
-        scrutiny1 = db.query(User).filter(User.username == "scrutiny1@aicte.gov.in").first()
-        ro_north = db.query(User).filter(User.username == "ro.north@aicte.gov.in").first()
+        admin = db.query(User).filter(User.username == "admin@demo.example").first()
+        chairman = db.query(User).filter(User.username == "chairman@demo.example").first()
+        evc_coord = db.query(User).filter(User.username == "evc.coord@demo.example").first()
+        scrutiny1 = db.query(User).filter(User.username == "scrutiny1@demo.example").first()
+        ro_north = db.query(User).filter(User.username == "ro.north@demo.example").first()
         inst = db.query(Institution).filter(Institution.id == 1).first()
         cat = db.query(ApplicationCategory).first()
 
@@ -139,7 +139,7 @@ def test_role_and_regional_permissions():
         inst_north = db.query(Institution).filter(Institution.region_id == 1).first()
         cat = db.query(ApplicationCategory).first()
         path1 = db.query(StagePath).filter(StagePath.code == "PATH_1_SCRUTINY_ONLY").first()
-        admin = db.query(User).filter(User.username == "admin@aicte.gov.in").first()
+        admin = db.query(User).filter(User.username == "admin@demo.example").first()
 
         app = WorkflowEngine.submit_application(
             db=db, actor=admin, institution_id=inst_north.id,
@@ -148,13 +148,13 @@ def test_role_and_regional_permissions():
         )
 
         # Scrutiny officer from West (region 2) cannot act on North (region 1)
-        scrutiny_west = db.query(User).filter(User.username == "scrutiny2@aicte.gov.in").first()
+        scrutiny_west = db.query(User).filter(User.username == "scrutiny2@demo.example").first()
         with pytest.raises(Exception) as exc:
             WorkflowEngine.complete_stage(db=db, application_id=app.id, actor=scrutiny_west, remarks="Invalid region attempt")
         assert "403" in str(exc.value)
 
         # Scrutiny officer cannot record final decision
-        scrutiny_north = db.query(User).filter(User.username == "scrutiny1@aicte.gov.in").first()
+        scrutiny_north = db.query(User).filter(User.username == "scrutiny1@demo.example").first()
         with pytest.raises(Exception) as exc:
             WorkflowEngine.record_decision(db=db, application_id=app.id, actor=scrutiny_north, decision="APPROVE", remarks="Invalid authority attempt")
         assert "403" in str(exc.value)
@@ -169,9 +169,9 @@ def test_revert_validation_and_cap():
         inst = db.query(Institution).filter(Institution.region_id == 1).first()
         cat = db.query(ApplicationCategory).first()
         path1 = db.query(StagePath).filter(StagePath.code == "PATH_1_SCRUTINY_ONLY").first()
-        admin = db.query(User).filter(User.username == "admin@aicte.gov.in").first()
-        scrutiny = db.query(User).filter(User.username == "scrutiny1@aicte.gov.in").first()
-        principal = db.query(User).filter(User.username == "principal@apexkanpur.edu").first()
+        admin = db.query(User).filter(User.username == "admin@demo.example").first()
+        scrutiny = db.query(User).filter(User.username == "scrutiny1@demo.example").first()
+        principal = db.query(User).filter(User.username == "principal@apexkanpur.demo.example").first()
 
         app = WorkflowEngine.submit_application(
             db=db, actor=admin, institution_id=inst.id,
@@ -239,7 +239,7 @@ def test_closed_application_guard():
     db: Session = SessionLocal()
     try:
         app = db.query(Application).filter(Application.status == ApplicationStatusEnum.APPROVED).first()
-        chairman = db.query(User).filter(User.username == "chairman@aicte.gov.in").first()
+        chairman = db.query(User).filter(User.username == "chairman@demo.example").first()
         with pytest.raises(Exception) as exc:
             WorkflowEngine.complete_stage(db=db, application_id=app.id, actor=chairman, remarks="Illegal transition on closed case")
         assert "400" in str(exc.value)
@@ -264,7 +264,7 @@ def test_sla_calculation_and_demo_clock_advance():
     assert sla_overdue["ageing_bucket"] == "OVERDUE"
 
     # 4. Advance clock via demo API
-    admin_token = get_token_for("admin@aicte.gov.in")
+    admin_token = get_token_for("admin@demo.example")
     headers = {"Authorization": f"Bearer {admin_token}"}
     
     res = client.post("/api/v1/demo/advance-clock", json={"hours": 48.0}, headers=headers)
@@ -279,7 +279,7 @@ def test_sla_calculation_and_demo_clock_advance():
 
 def test_applications_api_endpoints():
     """Verify all REST API endpoints for applications list, detail, timeline, and tags."""
-    admin_token = get_token_for("admin@aicte.gov.in")
+    admin_token = get_token_for("admin@demo.example")
     headers = {"Authorization": f"Bearer {admin_token}"}
 
     # 1. Deficiency Tags API

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <rect width="32" height="32" rx="6" fill="#1e3a8a"/>
+  <!-- AICTE emblem representation: Ashoka-style pillar & gear symbol in gold and white -->
+  <path d="M16 4 L26 9 L26 12 L6 12 L6 9 Z" fill="#f59e0b"/>
+  <rect x="8" y="13" width="3" height="11" rx="1" fill="#ffffff"/>
+  <rect x="14.5" y="13" width="3" height="11" rx="1" fill="#ffffff"/>
+  <rect x="21" y="13" width="3" height="11" rx="1" fill="#ffffff"/>
+  <rect x="5" y="25" width="22" height="3" rx="1" fill="#f59e0b"/>
+</svg>

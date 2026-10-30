@@ -1,5 +1,6 @@
 import os
 import sys
+import hashlib
 from datetime import datetime, timedelta
 
 # Ensure backend root is on sys.path
@@ -40,36 +41,36 @@ def seed_demo_applications():
         stages = db.query(Stage).all()
         stages_by_code = {s.code: s for s in stages}
 
-        admin = db.query(User).filter(User.username == "admin@aicte.gov.in").first()
-        chairman = db.query(User).filter(User.username == "chairman@aicte.gov.in").first()
-        evc_coord = db.query(User).filter(User.username == "evc.coord@aicte.gov.in").first()
+        admin = db.query(User).filter(User.username == "admin@demo.example").first()
+        chairman = db.query(User).filter(User.username == "chairman@demo.example").first()
+        evc_coord = db.query(User).filter(User.username == "evc.coord@demo.example").first()
 
         default_pwd_hash = get_password_hash("Password@123")
         bureau_role = db.query(Role).filter(Role.code == UserRoleEnum.BUREAU_OFFICER).first()
         comm_role = db.query(Role).filter(Role.code == UserRoleEnum.COMMITTEE_MEMBER).first()
 
-        bureau_user = db.query(User).filter(User.email == "bureau.officer@aicte.gov.in").first()
+        bureau_user = db.query(User).filter(User.email == "bureau.officer@demo.example").first()
         if not bureau_user and bureau_role:
             bureau_user = User(
-                username="bureau.officer@aicte.gov.in", email="bureau.officer@aicte.gov.in",
+                username="bureau.officer@demo.example", email="bureau.officer@demo.example",
                 full_name="Dr. Alok Verma (Bureau Officer)", password_hash=default_pwd_hash,
                 role_id=bureau_role.id, is_active=True
             )
             db.add(bureau_user)
 
-        evc_member = db.query(User).filter(User.email == "evc.member@aicte.gov.in").first()
+        evc_member = db.query(User).filter(User.email == "evc.member@demo.example").first()
         if not evc_member and comm_role:
             evc_member = User(
-                username="evc.member@aicte.gov.in", email="evc.member@aicte.gov.in",
+                username="evc.member@demo.example", email="evc.member@demo.example",
                 full_name="Dr. Ramesh Sharma (EVC Member)", password_hash=default_pwd_hash,
                 role_id=comm_role.id, is_active=True
             )
             db.add(evc_member)
 
-        shc_member = db.query(User).filter(User.email == "shc.member@aicte.gov.in").first()
+        shc_member = db.query(User).filter(User.email == "shc.member@demo.example").first()
         if not shc_member and comm_role:
             shc_member = User(
-                username="shc.member@aicte.gov.in", email="shc.member@aicte.gov.in",
+                username="shc.member@demo.example", email="shc.member@demo.example",
                 full_name="Prof. Sunita Rao (SHC Member)", password_hash=default_pwd_hash,
                 role_id=comm_role.id, is_active=True
             )
@@ -89,25 +90,25 @@ def seed_demo_applications():
         db.flush()
 
         scrutiny_map = {
-            1: db.query(User).filter(User.username == "scrutiny1@aicte.gov.in").first(),
-            2: db.query(User).filter(User.username == "scrutiny2@aicte.gov.in").first(),
-            3: db.query(User).filter(User.username == "scrutiny3@aicte.gov.in").first(),
-            4: db.query(User).filter(User.username == "scrutiny4@aicte.gov.in").first(),
-            5: db.query(User).filter(User.username == "scrutiny5@aicte.gov.in").first(),
+            1: db.query(User).filter(User.username == "scrutiny1@demo.example").first(),
+            2: db.query(User).filter(User.username == "scrutiny2@demo.example").first(),
+            3: db.query(User).filter(User.username == "scrutiny3@demo.example").first(),
+            4: db.query(User).filter(User.username == "scrutiny4@demo.example").first(),
+            5: db.query(User).filter(User.username == "scrutiny5@demo.example").first(),
         }
         ro_map = {
-            1: db.query(User).filter(User.username == "ro.north@aicte.gov.in").first(),
-            2: db.query(User).filter(User.username == "ro.west@aicte.gov.in").first(),
-            3: db.query(User).filter(User.username == "ro.south@aicte.gov.in").first(),
-            4: db.query(User).filter(User.username == "ro.east@aicte.gov.in").first(),
-            5: db.query(User).filter(User.username == "ro.central@aicte.gov.in").first(),
+            1: db.query(User).filter(User.username == "ro.north@demo.example").first(),
+            2: db.query(User).filter(User.username == "ro.west@demo.example").first(),
+            3: db.query(User).filter(User.username == "ro.south@demo.example").first(),
+            4: db.query(User).filter(User.username == "ro.east@demo.example").first(),
+            5: db.query(User).filter(User.username == "ro.central@demo.example").first(),
         }
         inst_user_map = {
-            1: db.query(User).filter(User.username == "principal@apexkanpur.edu").first(),
-            4: db.query(User).filter(User.username == "director@sahyadri.edu").first(),
-            7: db.query(User).filter(User.username == "principal@kaveri.edu").first(),
-            10: db.query(User).filter(User.username == "director@kalinga.edu").first(),
-            13: db.query(User).filter(User.username == "principal@malwa.edu").first(),
+            1: db.query(User).filter(User.username == "principal@apexkanpur.demo.example").first(),
+            4: db.query(User).filter(User.username == "director@sahyadri.demo.example").first(),
+            7: db.query(User).filter(User.username == "principal@kaveri.demo.example").first(),
+            10: db.query(User).filter(User.username == "director@kalinga.demo.example").first(),
+            13: db.query(User).filter(User.username == "principal@malwa.demo.example").first(),
         }
 
         now = get_system_time()
@@ -345,6 +346,17 @@ def seed_demo_applications():
                         ClockSegment.application_id == app.id,
                         ClockSegment.ended_at == None
                     ).order_by(ClockSegment.id.desc()).first()
+
+                    # Phase 8: Ensure at least 2 applications are in HIGH risk band but NOT yet overdue
+                    # so RULE_RISK_HIGH advisory alert fires during seeding/demo
+                    if app_idx in [33, 34]:
+                        app.revert_count = 2
+                        app.stage_entered_at = now - timedelta(days=2.8)
+                        app.stage_due_date = app.stage_entered_at + timedelta(days=sla_days)
+                        if open_hist:
+                            open_hist.entered_at = app.stage_entered_at
+                            open_hist.due_date = app.stage_due_date
+
                     if open_seg:
                         open_seg.started_at = app.stage_entered_at
                         open_seg.holder = app.case_holder
@@ -466,14 +478,29 @@ def seed_demo_applications():
             ("sample_evc_report.pdf", "EVC Inspection Report Apex Campus.pdf", 61000, "application/pdf", "EVC_REPORT", 1),
         ]
         seeded_files = {}
+        import os
+        from app.services.file_encryption import FileEncryptionService
+        upload_sample_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "uploads", "samples"))
+        os.makedirs(upload_sample_dir, exist_ok=True)
+
         for fname, orig_name, fsize, mtype, etype, eid in sample_file_defs:
+            fpath = os.path.join(upload_sample_dir, f"{fname}.enc")
+            # Write synthetic PDF content with valid %PDF magic bytes
+            raw_pdf = f"%PDF-1.4\nAICTE Synthetic Test Document: {orig_name}\nApproved under statutory guidelines.".encode("utf-8")
+            ct, key_id, iv_hex = FileEncryptionService.encrypt_bytes(raw_pdf)
+            with open(fpath, "wb") as fp:
+                fp.write(ct)
+
             f = UploadedFile(
                 original_filename=orig_name,
-                stored_filename=fname,
-                file_path=f"backend/uploads/samples/{fname}",
-                file_size_bytes=fsize,
+                stored_filename=f"{fname}.enc",
+                file_path=fpath,
+                file_size_bytes=len(raw_pdf),
                 mime_type=mtype,
-                checksum_sha256="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                checksum_sha256=hashlib.sha256(raw_pdf).hexdigest(),
+                is_encrypted=True,
+                encryption_key_id=key_id,
+                encryption_iv=iv_hex,
                 entity_type=etype,
                 entity_id=eid,
                 uploaded_by=admin.id,
@@ -481,7 +508,7 @@ def seed_demo_applications():
             db.add(f)
             seeded_files[fname] = f
         db.commit()
-        print(f"✓ Seeded {len(seeded_files)} uploaded file metadata records.")
+        print(f"✓ Seeded {len(seeded_files)} uploaded file metadata records (encrypted at rest with AES-256-GCM).")
 
         # =========================================================================
         # 4. SEED EVC VISITS (~12 records covering all lifecycle states)

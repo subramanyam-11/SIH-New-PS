@@ -21,12 +21,29 @@ from app.api.v1.holidays import router as holidays_router
 from app.api.v1.risk import router as risk_router
 from app.api.v1.bottlenecks import router as bottlenecks_router
 from app.api.v1.planner import router as planner_router
+from app.api.v1.audit import router as audit_router
+from app.api.v1.retention import router as retention_router
+from app.api.v1.integration import router as integration_router
 from app.services.scheduler import start_scheduler, stop_scheduler
 from app.schemas import HealthCheckResponse
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Startup Security Auditing and Warning
+    if settings.DEMO_MODE:
+        print("\n" + "=" * 70)
+        print("WARNING: DEMO_MODE is active (DEMO_MODE=True).")
+        print("Demo login personas and fast-switch chips are enabled.")
+        print("For production deployments, set DEMO_MODE=False.")
+        print("=" * 70 + "\n")
+
+    if "change-in-production" in settings.JWT_SECRET or len(settings.JWT_SECRET) < 32:
+        print("\n" + "!" * 70)
+        print("CRITICAL SECURITY NOTICE: JWT_SECRET appears to be default or insecure.")
+        print("Generate a cryptographically secure 256-bit secret for production.")
+        print("!" * 70 + "\n")
+
     # Startup: Launch background scheduler
     start_scheduler()
     yield
@@ -34,74 +51,96 @@ async def lifespan(app: FastAPI):
     stop_scheduler()
 
 
-app = FastAPI(
-    title="AICTE Approval Workflow Automation API",
-    description="Backend services for SIH26262: Integrated AICTE Approval Workflow, Compliance Monitoring and Alert Management System",
-    version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/openapi.json",
-    lifespan=lifespan,
-)
-
-# CORS Middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-@app.get("/health", response_model=HealthCheckResponse, tags=["Health"])
-def health_check():
-    db_status = "healthy"
-    try:
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-    except Exception as e:
-        db_status = f"unhealthy: {str(e)}"
-
-    return HealthCheckResponse(
-        status="ok" if db_status == "healthy" else "degraded",
-        database=db_status,
-        environment=settings.ENVIRONMENT,
-        demo_mode=settings.DEMO_MODE,
-        timestamp=datetime.utcnow()
+def create_app() -> FastAPI:
+    application = FastAPI(
+        title="AICTE Approval Workflow Automation API",
+        description="Backend services for SIH26262: Integrated AICTE Approval Workflow, Compliance Monitoring and Alert Management System",
+        version="1.0.0",
+        docs_url="/docs" if settings.DEMO_MODE else None,
+        redoc_url="/redoc" if settings.DEMO_MODE else None,
+        openapi_url="/openapi.json" if settings.DEMO_MODE else None,
+        lifespan=lifespan,
     )
 
-
-# Standard Error Handler
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    return JSONResponse(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={
-            "error": "Internal Server Error",
-            "message": str(exc),
-            "path": request.url.path,
-            "timestamp": datetime.utcnow().isoformat()
-        }
+    # CORS Middleware with strict origins from config
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With", "X-Idempotency-Key", "X-Signature", "X-Timestamp", "X-API-Key"],
     )
 
+    # Security Headers Middleware
+    @application.middleware("http")
+    async def add_security_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data:; "
+            "connect-src 'self' http://localhost:* http://127.0.0.1:*;"
+        )
+        return response
 
-# API Routers
-app.include_router(auth_router, prefix="/api/v1")
-app.include_router(config_router, prefix="/api/v1")
-app.include_router(lookup_router, prefix="/api/v1")
-app.include_router(applications_router, prefix="/api/v1")
-app.include_router(alerts_router, prefix="/api/v1")
-app.include_router(files_router, prefix="/api/v1")
-app.include_router(evc_router, prefix="/api/v1")
-app.include_router(undertakings_router, prefix="/api/v1")
-app.include_router(documents_router, prefix="/api/v1")
-app.include_router(reports_router, prefix="/api/v1")
-app.include_router(committee_router, prefix="/api/v1")
-app.include_router(holidays_router, prefix="/api/v1")
-app.include_router(risk_router, prefix="/api/v1")
-app.include_router(bottlenecks_router, prefix="/api/v1")
-app.include_router(planner_router, prefix="/api/v1")
+    @application.get("/health", response_model=HealthCheckResponse, tags=["Health"])
+    def health_check():
+        db_status = "healthy"
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+        except Exception as e:
+            db_status = f"unhealthy: {str(e)}"
+
+        return HealthCheckResponse(
+            status="ok" if db_status == "healthy" else "degraded",
+            database=db_status,
+            environment=settings.ENVIRONMENT,
+            demo_mode=settings.DEMO_MODE,
+            timestamp=datetime.utcnow()
+        )
+
+    # Standard Error Handler
+    @application.exception_handler(Exception)
+    async def global_exception_handler(request: Request, exc: Exception):
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "error": "Internal Server Error",
+                "message": str(exc),
+                "path": request.url.path,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        )
+
+    # API Routers
+    application.include_router(auth_router, prefix="/api/v1")
+    application.include_router(config_router, prefix="/api/v1")
+    application.include_router(lookup_router, prefix="/api/v1")
+    application.include_router(applications_router, prefix="/api/v1")
+    application.include_router(alerts_router, prefix="/api/v1")
+    application.include_router(files_router, prefix="/api/v1")
+    application.include_router(evc_router, prefix="/api/v1")
+    application.include_router(undertakings_router, prefix="/api/v1")
+    application.include_router(documents_router, prefix="/api/v1")
+    application.include_router(reports_router, prefix="/api/v1")
+    application.include_router(committee_router, prefix="/api/v1")
+    application.include_router(holidays_router, prefix="/api/v1")
+    application.include_router(risk_router, prefix="/api/v1")
+    application.include_router(bottlenecks_router, prefix="/api/v1")
+    application.include_router(planner_router, prefix="/api/v1")
+    application.include_router(audit_router, prefix="/api/v1")
+    application.include_router(retention_router, prefix="/api/v1")
+    application.include_router(integration_router, prefix="/api/v1")
+
+    return application
+
+
+app = create_app()
 
 
 if __name__ == "__main__":

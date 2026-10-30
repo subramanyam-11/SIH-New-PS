@@ -19,7 +19,7 @@ def test_health():
 
 def test_login_success():
     response = client.post("/api/v1/auth/login", json={
-        "email": "admin@aicte.gov.in",
+        "email": "admin@demo.example",
         "password": "Password@123"
     })
     assert response.status_code == 200
@@ -31,7 +31,7 @@ def test_login_success():
 
 def test_login_failure():
     response = client.post("/api/v1/auth/login", json={
-        "email": "admin@aicte.gov.in",
+        "email": "admin@demo.example",
         "password": "WrongPassword!"
     })
     assert response.status_code == 401
@@ -41,7 +41,7 @@ def test_login_failure():
 def test_demo_login_regional_head():
     response = client.post("/api/v1/auth/demo-login", json={
         "role": "REGIONAL_HEAD",
-        "email": "ro.north@aicte.gov.in"
+        "email": "ro.north@demo.example"
     })
     assert response.status_code == 200
     data = response.json()
@@ -68,7 +68,7 @@ def test_token_protection():
 
 def test_rbac_institution_scoping():
     # Login as Institution user (Apex Kanpur)
-    login_resp = client.post("/api/v1/auth/demo-login", json={"role": "INSTITUTION_USER", "email": "principal@apexkanpur.edu"})
+    login_resp = client.post("/api/v1/auth/demo-login", json={"role": "INSTITUTION_USER", "email": "principal@apexkanpur.demo.example"})
     token = login_resp.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
@@ -84,7 +84,7 @@ def test_rbac_institution_scoping():
 
 def test_rbac_regional_head_scoping():
     # Login as Regional Head North
-    login_resp = client.post("/api/v1/auth/demo-login", json={"role": "REGIONAL_HEAD", "email": "ro.north@aicte.gov.in"})
+    login_resp = client.post("/api/v1/auth/demo-login", json={"role": "REGIONAL_HEAD", "email": "ro.north@demo.example"})
     token = login_resp.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
@@ -120,7 +120,7 @@ def test_audit_log_written_on_login():
     
     # Perform a login
     client.post("/api/v1/auth/login", json={
-        "email": "admin@aicte.gov.in",
+        "email": "admin@demo.example",
         "password": "Password@123"
     })
     

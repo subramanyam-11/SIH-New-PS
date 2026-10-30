@@ -8,6 +8,7 @@ from typing import Dict, Any, List, Optional, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
+from app.core.config import settings
 from app.models import (
     Application, ApplicationStatusEnum, Stage, User, SystemConfig,
     RiskScoreSnapshot, ClockSegment
@@ -25,11 +26,8 @@ DEFAULT_WEIGHTS = {
     "current_stage": 15,
 }
 
-# Default band thresholds
-DEFAULT_BANDS = {
-    "low_max": 35,
-    "medium_max": 65,
-}
+# Default band thresholds (Centralized in config.py: Low: <40, Medium: 40-69, High: >=70)
+DEFAULT_BANDS = dict(settings.RISK_BAND_THRESHOLDS)
 
 # Default officer capacity
 DEFAULT_OFFICER_CAPACITY = 12
@@ -92,8 +90,8 @@ class RiskScoreService:
     @staticmethod
     def score_to_band(score: float, thresholds: Dict[str, int]) -> str:
         """Convert numeric score to band label."""
-        low_max = thresholds.get("low_max", 35)
-        medium_max = thresholds.get("medium_max", 65)
+        low_max = thresholds.get("low_max", settings.RISK_LOW_MAX)
+        medium_max = thresholds.get("medium_max", settings.RISK_MEDIUM_MAX)
         if score <= low_max:
             return "LOW"
         elif score <= medium_max:

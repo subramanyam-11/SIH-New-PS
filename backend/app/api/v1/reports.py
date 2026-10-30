@@ -1,5 +1,5 @@
 from typing import Optional, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status, Request
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.rbac import get_current_user, UserScope, get_user_scope
@@ -201,6 +201,7 @@ def export_pdf(
 @router.get("/institutions/{institution_id}/health")
 def get_institution_health(
     institution_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     scope: UserScope = Depends(get_user_scope)
@@ -211,5 +212,18 @@ def get_institution_health(
     """
     if scope.is_institution and scope.institution_id != institution_id:
         raise HTTPException(status_code=403, detail="Access denied: Cannot view another institution's compliance health")
+
+    from app.services.audit import AuditService
+    client_ip = request.client.host if request.client else None
+    AuditService.log_view(
+        db=db,
+        entity_type="INSTITUTION_HEALTH_DOSSIER",
+        entity_id=institution_id,
+        action="VIEW_HEALTH_DOSSIER",
+        actor_id=current_user.id,
+        role=current_user.role.code.value if current_user.role else None,
+        ip_address=client_ip,
+        details={"institution_id": institution_id}
+    )
 
     return ReportsService.get_institution_health_dossier(db, institution_id)

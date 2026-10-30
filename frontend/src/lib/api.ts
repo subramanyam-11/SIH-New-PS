@@ -1126,4 +1126,56 @@ export const filesApi = {
   },
 };
 
+export const auditApi = {
+  search: async (params?: Record<string, any>) => {
+    const res = await apiClient.get('/audit', { params });
+    return res.data;
+  },
+  verifyIntegrity: async () => {
+    const res = await apiClient.get('/audit/verify-integrity');
+    return res.data;
+  },
+  exportCsvUrl: (params?: Record<string, any>) => {
+    const query = new URLSearchParams(params as any).toString();
+    return `${API_BASE_URL}/audit/export-csv?${query}`;
+  },
+};
+
+export const retentionApi = {
+  getPolicy: async () => {
+    const res = await apiClient.get('/retention/policy');
+    return res.data;
+  },
+  updatePolicy: async (policy: Record<string, number>) => {
+    const res = await apiClient.put('/retention/policy', policy);
+    return res.data;
+  },
+  getPreview: async () => {
+    const res = await apiClient.get('/retention/preview');
+    return res.data;
+  },
+  exportPreviewCsvUrl: () => {
+    return `${API_BASE_URL}/retention/preview/csv`;
+  },
+};
+
+export const integrationApi = {
+  getStatus: async () => {
+    const res = await apiClient.get('/integration/status');
+    return res.data;
+  },
+  lookupInstitution: async (aicteId: string) => {
+    const res = await apiClient.get(`/integration/institution/${aicteId}`);
+    return res.data;
+  },
+  pushStatus: async (payload: { application_number: string; new_status: string; remarks?: string }) => {
+    const res = await apiClient.post('/integration/sync/status', payload);
+    return res.data;
+  },
+  getLogs: async (limit = 50) => {
+    const res = await apiClient.get('/integration/logs', { params: { limit } });
+    return res.data;
+  },
+};
+
 

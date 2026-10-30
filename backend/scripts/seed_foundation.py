@@ -64,21 +64,21 @@ def seed_foundation():
 
         # 3. INSTITUTIONS (15 Representative Institutions)
         institutions_data = [
-            ("1-102938471", "Apex Institute of Technology, Kanpur", "Engineering & Technology", "Self-Financing", regions_map["RO_NORTH"].id, "NH-2, Kalyanpur", "Kanpur", "Uttar Pradesh", "208017", "principal@apexkanpur.edu", "+91-512-258901"),
-            ("1-102938472", "Doon Valley College of Engineering, Dehradun", "Engineering & Technology", "Self-Financing", regions_map["RO_NORTH"].id, "Rajpur Road", "Dehradun", "Uttarakhand", "248001", "info@doonvalley.edu", "+91-135-274902"),
-            ("1-102938473", "Kashi Institute of Management, Varanasi", "Management", "Self-Financing", regions_map["RO_NORTH"].id, "Mirzapur Road", "Varanasi", "Uttar Pradesh", "221005", "admin@kashimgmt.edu", "+91-542-269103"),
-            ("1-204958381", "Sahyadri College of Engineering & Tech, Pune", "Engineering & Technology", "Govt-Aided", regions_map["RO_WEST"].id, "Karve Road", "Pune", "Maharashtra", "411038", "director@sahyadri.edu", "+91-20-254390"),
-            ("1-204958382", "Maratha Mandal Polytechnic, Kolhapur", "Polytechnic", "Self-Financing", regions_map["RO_WEST"].id, "Station Road", "Kolhapur", "Maharashtra", "416001", "principal@mmpoly.edu", "+91-231-265104"),
-            ("1-204958383", "Vidarbha Business School, Nagpur", "Management", "Self-Financing", regions_map["RO_WEST"].id, "Wardha Road", "Nagpur", "Maharashtra", "440015", "dean@vidarbhabs.edu", "+91-712-284905"),
-            ("1-305849201", "Kaveri Institute of Technology, Coimbatore", "Engineering & Technology", "Self-Financing", regions_map["RO_SOUTH"].id, "Avinashi Road", "Coimbatore", "Tamil Nadu", "641014", "principal@kaveri.edu", "+91-422-290106"),
-            ("1-305849202", "Thanjavur Polytechnic College, Thanjavur", "Polytechnic", "Govt", regions_map["RO_SOUTH"].id, "Trichy Road", "Thanjavur", "Tamil Nadu", "613007", "principal@thanjavurpoly.gov.in", "+91-436-248907"),
-            ("1-305849203", "Madras Academy of Computer Applications, Chennai", "MCA", "Self-Financing", regions_map["RO_SOUTH"].id, "OMR Expressway", "Chennai", "Tamil Nadu", "600096", "info@maca.edu", "+91-44-245010"),
-            ("1-409582711", "Kalinga Institute of Engineering, Bhubaneswar", "Engineering & Technology", "Self-Financing", regions_map["RO_EAST"].id, "Patia", "Bhubaneswar", "Odisha", "751024", "info@kalingaeng.edu", "+91-674-272511"),
-            ("1-409582712", "Hooghly Institute of Technology, Kolkata", "Polytechnic", "Govt-Aided", regions_map["RO_EAST"].id, "Grand Trunk Road", "Kolkata", "West Bengal", "712103", "principal@hooghlytech.edu", "+91-33-268012"),
-            ("1-409582713", "Patna School of Pharmacy, Patna", "Pharmacy", "Self-Financing", regions_map["RO_EAST"].id, "Bailey Road", "Patna", "Bihar", "800001", "director@patnapharmacy.edu", "+91-612-223413"),
-            ("1-508392101", "Malwa Institute of Technology, Indore", "Engineering & Technology", "Self-Financing", regions_map["RO_CENTRAL"].id, "Bypass Road", "Indore", "Madhya Pradesh", "452016", "admin@malwatech.edu", "+91-731-280514"),
-            ("1-508392102", "Chhattisgarh College of Applied Sciences, Raipur", "Applied Arts", "Self-Financing", regions_map["RO_CENTRAL"].id, "VIP Road", "Raipur", "Chhattisgarh", "492006", "principal@ccasraipur.edu", "+91-771-297115"),
-            ("1-508392103", "Narmada Polytechnic Institute, Jabalpur", "Polytechnic", "Govt", regions_map["RO_CENTRAL"].id, "Civil Lines", "Jabalpur", "Madhya Pradesh", "482001", "principal@narmadapoly.gov.in", "+91-761-262116")
+            ("1-102938471", "Apex Institute of Technology, Kanpur", "Engineering & Technology", "Self-Financing", regions_map["RO_NORTH"].id, "NH-2, Kalyanpur", "Kanpur", "Uttar Pradesh", "208017", "principal@apexkanpur.demo.example", "+91-512-258901"),
+            ("1-102938472", "Doon Valley College of Engineering, Dehradun", "Engineering & Technology", "Self-Financing", regions_map["RO_NORTH"].id, "Rajpur Road", "Dehradun", "Uttarakhand", "248001", "info@doonvalley.demo.example", "+91-135-274902"),
+            ("1-102938473", "Kashi Institute of Management, Varanasi", "Management", "Self-Financing", regions_map["RO_NORTH"].id, "Mirzapur Road", "Varanasi", "Uttar Pradesh", "221005", "admin@kashimgmt.demo.example", "+91-542-269103"),
+            ("1-204958381", "Sahyadri College of Engineering & Tech, Pune", "Engineering & Technology", "Govt-Aided", regions_map["RO_WEST"].id, "Karve Road", "Pune", "Maharashtra", "411038", "director@sahyadri.demo.example", "+91-20-254390"),
+            ("1-204958382", "Maratha Mandal Polytechnic, Kolhapur", "Polytechnic", "Self-Financing", regions_map["RO_WEST"].id, "Station Road", "Kolhapur", "Maharashtra", "416001", "principal@mmpoly.demo.example", "+91-231-265104"),
+            ("1-204958383", "Vidarbha Business School, Nagpur", "Management", "Self-Financing", regions_map["RO_WEST"].id, "Wardha Road", "Nagpur", "Maharashtra", "440015", "dean@vidarbhabs.demo.example", "+91-712-284905"),
+            ("1-305849201", "Kaveri Institute of Technology, Coimbatore", "Engineering & Technology", "Self-Financing", regions_map["RO_SOUTH"].id, "Avinashi Road", "Coimbatore", "Tamil Nadu", "641014", "principal@kaveri.demo.example", "+91-422-290106"),
+            ("1-305849202", "Thanjavur Polytechnic College, Thanjavur", "Polytechnic", "Govt", regions_map["RO_SOUTH"].id, "Trichy Road", "Thanjavur", "Tamil Nadu", "613007", "principal@thanjavurpoly.demo.example", "+91-436-248907"),
+            ("1-305849203", "Madras Academy of Computer Applications, Chennai", "MCA", "Self-Financing", regions_map["RO_SOUTH"].id, "OMR Expressway", "Chennai", "Tamil Nadu", "600096", "info@maca.demo.example", "+91-44-245010"),
+            ("1-409582711", "Kalinga Institute of Engineering, Bhubaneswar", "Engineering & Technology", "Self-Financing", regions_map["RO_EAST"].id, "Patia", "Bhubaneswar", "Odisha", "751024", "info@kalingaeng.demo.example", "+91-674-272511"),
+            ("1-409582712", "Hooghly Institute of Technology, Kolkata", "Polytechnic", "Govt-Aided", regions_map["RO_EAST"].id, "Grand Trunk Road", "Kolkata", "West Bengal", "712103", "principal@hooghlytech.demo.example", "+91-33-268012"),
+            ("1-409582713", "Patna School of Pharmacy, Patna", "Pharmacy", "Self-Financing", regions_map["RO_EAST"].id, "Bailey Road", "Patna", "Bihar", "800001", "director@patnapharmacy.demo.example", "+91-612-223413"),
+            ("1-508392101", "Malwa Institute of Technology, Indore", "Engineering & Technology", "Self-Financing", regions_map["RO_CENTRAL"].id, "Bypass Road", "Indore", "Madhya Pradesh", "452016", "admin@malwatech.demo.example", "+91-731-280514"),
+            ("1-508392102", "Chhattisgarh College of Applied Sciences, Raipur", "Applied Arts", "Self-Financing", regions_map["RO_CENTRAL"].id, "VIP Road", "Raipur", "Chhattisgarh", "492006", "principal@ccasraipur.demo.example", "+91-771-297115"),
+            ("1-508392103", "Narmada Polytechnic Institute, Jabalpur", "Polytechnic", "Govt", regions_map["RO_CENTRAL"].id, "Civil Lines", "Jabalpur", "Madhya Pradesh", "482001", "principal@narmadapoly.demo.example", "+91-761-262116")
         ]
 
         institutions_map = {}
@@ -99,27 +99,27 @@ def seed_foundation():
         # 4. USERS (Demo Personas)
         default_pwd_hash = get_password_hash("Password@123")
         users_data = [
-            ("admin@aicte.gov.in", "admin@aicte.gov.in", "Dr. Rajesh Verma (System Admin)", UserRoleEnum.ADMIN, None, None),
-            ("ro.north@aicte.gov.in", "ro.north@aicte.gov.in", "Er. Sunil Trivedi (Regional Head North)", UserRoleEnum.REGIONAL_HEAD, regions_map["RO_NORTH"].id, None),
-            ("ro.west@aicte.gov.in", "ro.west@aicte.gov.in", "Dr. Priya Kulkarni (Regional Head West)", UserRoleEnum.REGIONAL_HEAD, regions_map["RO_WEST"].id, None),
-            ("ro.south@aicte.gov.in", "ro.south@aicte.gov.in", "Dr. K. Swaminathan (Regional Head South)", UserRoleEnum.REGIONAL_HEAD, regions_map["RO_SOUTH"].id, None),
-            ("ro.east@aicte.gov.in", "ro.east@aicte.gov.in", "Prof. Anirban Mukherjee (Regional Head East)", UserRoleEnum.REGIONAL_HEAD, regions_map["RO_EAST"].id, None),
-            ("ro.central@aicte.gov.in", "ro.central@aicte.gov.in", "Dr. Archana Verma (Regional Head Central)", UserRoleEnum.REGIONAL_HEAD, regions_map["RO_CENTRAL"].id, None),
-            ("scrutiny1@aicte.gov.in", "scrutiny1@aicte.gov.in", "Amit Sharma (Scrutiny Desk North)", UserRoleEnum.SCRUTINY_OFFICER, regions_map["RO_NORTH"].id, None),
-            ("scrutiny2@aicte.gov.in", "scrutiny2@aicte.gov.in", "Neha Joshi (Scrutiny Desk West)", UserRoleEnum.SCRUTINY_OFFICER, regions_map["RO_WEST"].id, None),
-            ("scrutiny3@aicte.gov.in", "scrutiny3@aicte.gov.in", "R. Venkatesh (Scrutiny Desk South)", UserRoleEnum.SCRUTINY_OFFICER, regions_map["RO_SOUTH"].id, None),
-            ("scrutiny4@aicte.gov.in", "scrutiny4@aicte.gov.in", "Subhashish Das (Scrutiny Desk East)", UserRoleEnum.SCRUTINY_OFFICER, regions_map["RO_EAST"].id, None),
-            ("scrutiny5@aicte.gov.in", "scrutiny5@aicte.gov.in", "Manish Tiwari (Scrutiny Desk Central)", UserRoleEnum.SCRUTINY_OFFICER, regions_map["RO_CENTRAL"].id, None),
-            ("evc.coord@aicte.gov.in", "evc.coord@aicte.gov.in", "Prof. K. Ramanathan (National EVC Coordinator)", UserRoleEnum.EVC_COORDINATOR, None, None),
-            ("chairman@aicte.gov.in", "chairman@aicte.gov.in", "Prof. T. G. Sitharam (Competent Authority)", UserRoleEnum.COMPETENT_AUTHORITY, None, None),
-            ("principal@apexkanpur.edu", "principal@apexkanpur.edu", "Dr. V. K. Saxena (Principal, Apex Kanpur)", UserRoleEnum.INSTITUTION_USER, regions_map["RO_NORTH"].id, institutions_map["1-102938471"].id),
-            ("director@sahyadri.edu", "director@sahyadri.edu", "Dr. S. R. Patil (Director, Sahyadri Pune)", UserRoleEnum.INSTITUTION_USER, regions_map["RO_WEST"].id, institutions_map["1-204958381"].id),
-            ("principal@kaveri.edu", "principal@kaveri.edu", "Dr. S. Ramachandran (Principal, Kaveri Coimbatore)", UserRoleEnum.INSTITUTION_USER, regions_map["RO_SOUTH"].id, institutions_map["1-305849201"].id),
-            ("director@kalinga.edu", "director@kalinga.edu", "Dr. B. K. Mohanty (Director, Kalinga Bhubaneswar)", UserRoleEnum.INSTITUTION_USER, regions_map["RO_EAST"].id, institutions_map["1-409582711"].id),
-            ("principal@malwa.edu", "principal@malwa.edu", "Dr. N. K. Chouhan (Principal, Malwa Indore)", UserRoleEnum.INSTITUTION_USER, regions_map["RO_CENTRAL"].id, institutions_map["1-508392101"].id),
-            ("bureau.officer@aicte.gov.in", "bureau.officer@aicte.gov.in", "Dr. Alok Verma (Bureau Officer)", UserRoleEnum.BUREAU_OFFICER, None, None),
-            ("evc.member@aicte.gov.in", "evc.member@aicte.gov.in", "Dr. Ramesh Sharma (EVC Member)", UserRoleEnum.COMMITTEE_MEMBER, None, None),
-            ("shc.member@aicte.gov.in", "shc.member@aicte.gov.in", "Prof. Sunita Rao (SHC Member)", UserRoleEnum.COMMITTEE_MEMBER, None, None)
+            ("admin@demo.example", "admin@demo.example", "Dr. Rajesh Verma (System Admin)", UserRoleEnum.ADMIN, None, None),
+            ("ro.north@demo.example", "ro.north@demo.example", "Er. Sunil Trivedi (Regional Head North)", UserRoleEnum.REGIONAL_HEAD, regions_map["RO_NORTH"].id, None),
+            ("ro.west@demo.example", "ro.west@demo.example", "Dr. Priya Kulkarni (Regional Head West)", UserRoleEnum.REGIONAL_HEAD, regions_map["RO_WEST"].id, None),
+            ("ro.south@demo.example", "ro.south@demo.example", "Dr. K. Swaminathan (Regional Head South)", UserRoleEnum.REGIONAL_HEAD, regions_map["RO_SOUTH"].id, None),
+            ("ro.east@demo.example", "ro.east@demo.example", "Prof. Anirban Mukherjee (Regional Head East)", UserRoleEnum.REGIONAL_HEAD, regions_map["RO_EAST"].id, None),
+            ("ro.central@demo.example", "ro.central@demo.example", "Dr. Archana Verma (Regional Head Central)", UserRoleEnum.REGIONAL_HEAD, regions_map["RO_CENTRAL"].id, None),
+            ("scrutiny1@demo.example", "scrutiny1@demo.example", "Amit Sharma (Scrutiny Desk North)", UserRoleEnum.SCRUTINY_OFFICER, regions_map["RO_NORTH"].id, None),
+            ("scrutiny2@demo.example", "scrutiny2@demo.example", "Neha Joshi (Scrutiny Desk West)", UserRoleEnum.SCRUTINY_OFFICER, regions_map["RO_WEST"].id, None),
+            ("scrutiny3@demo.example", "scrutiny3@demo.example", "R. Venkatesh (Scrutiny Desk South)", UserRoleEnum.SCRUTINY_OFFICER, regions_map["RO_SOUTH"].id, None),
+            ("scrutiny4@demo.example", "scrutiny4@demo.example", "Subhashish Das (Scrutiny Desk East)", UserRoleEnum.SCRUTINY_OFFICER, regions_map["RO_EAST"].id, None),
+            ("scrutiny5@demo.example", "scrutiny5@demo.example", "Manish Tiwari (Scrutiny Desk Central)", UserRoleEnum.SCRUTINY_OFFICER, regions_map["RO_CENTRAL"].id, None),
+            ("evc.coord@demo.example", "evc.coord@demo.example", "Prof. K. Ramanathan (National EVC Coordinator)", UserRoleEnum.EVC_COORDINATOR, None, None),
+            ("chairman@demo.example", "chairman@demo.example", "Dr. Anand V. Joshi (Competent Authority)", UserRoleEnum.COMPETENT_AUTHORITY, None, None),
+            ("principal@apexkanpur.demo.example", "principal@apexkanpur.demo.example", "Dr. V. K. Saxena (Principal, Apex Kanpur)", UserRoleEnum.INSTITUTION_USER, regions_map["RO_NORTH"].id, institutions_map["1-102938471"].id),
+            ("director@sahyadri.demo.example", "director@sahyadri.demo.example", "Dr. S. R. Patil (Director, Sahyadri Pune)", UserRoleEnum.INSTITUTION_USER, regions_map["RO_WEST"].id, institutions_map["1-204958381"].id),
+            ("principal@kaveri.demo.example", "principal@kaveri.demo.example", "Dr. S. Ramachandran (Principal, Kaveri Coimbatore)", UserRoleEnum.INSTITUTION_USER, regions_map["RO_SOUTH"].id, institutions_map["1-305849201"].id),
+            ("director@kalinga.demo.example", "director@kalinga.demo.example", "Dr. B. K. Mohanty (Director, Kalinga Bhubaneswar)", UserRoleEnum.INSTITUTION_USER, regions_map["RO_EAST"].id, institutions_map["1-409582711"].id),
+            ("principal@malwa.demo.example", "principal@malwa.demo.example", "Dr. N. K. Chouhan (Principal, Malwa Indore)", UserRoleEnum.INSTITUTION_USER, regions_map["RO_CENTRAL"].id, institutions_map["1-508392101"].id),
+            ("bureau.officer@demo.example", "bureau.officer@demo.example", "Dr. Alok Verma (Bureau Officer)", UserRoleEnum.BUREAU_OFFICER, None, None),
+            ("evc.member@demo.example", "evc.member@demo.example", "Dr. Ramesh Sharma (EVC Member)", UserRoleEnum.COMMITTEE_MEMBER, None, None),
+            ("shc.member@demo.example", "shc.member@demo.example", "Prof. Sunita Rao (SHC Member)", UserRoleEnum.COMMITTEE_MEMBER, None, None)
         ]
 
         users_count = 0
@@ -298,6 +298,10 @@ def seed_foundation():
                 "action_on_exceeded": "ESCALATION_REQUIRED",
                 "description": "Max allowable clarification cycles before mandatory escalation to Regional Head"
             }, "Revert cap rule configuration"),
+            ("risk_band_thresholds", {
+                "low_max": 39,
+                "medium_max": 69
+            }, "Configured delay risk scoring bands: Low (<40), Medium (40-69), High (>=70)"),
             ("deficiency_tags", [
                 {"code": "DEF_LAND_TITLE", "label": "Land Title / Ownership Defect", "description": "Clear and undisputed land title deed or registry proof not produced."},
                 {"code": "DEF_FIRE_NOC", "label": "Fire Safety NOC Missing or Expired", "description": "Valid Fire and Rescue Services NOC from competent state authority missing."},
